@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BookOpen, Calendar, Clock, CircleCheck as CheckCircle, TrendingUp, User, Plus } from 'lucide-react-native';
-import { useEstuday, getGreeting } from '@/contexts/StudayContext';
+import { useStuday, getGreeting } from '@/contexts/StudayContext';
 import { isFutureDate, isToday } from '@/utils/dateUtils';
 import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -10,14 +10,20 @@ import { lightColors } from '@/components/theme/colors';
 import { BaseButton } from '@/components/BaseButton/BaseButton';
 
 export default function HomeScreen() {
-  const { state } = useEstuday();
+  const { 
+  compromissos = [], 
+  anotacoes = [], 
+  materias = [], 
+  userProfile = {}, // <-- Isso garante que nunca seja undefined
+  progresso = {} 
+} = useStuday();
   const { colors, typography } = useTheme();
   const styles = makeStyles(colors);
 
-  const compromissosHoje = state.compromissos.filter(c => isToday(c.data));
-  const compromissosFuturos = state.compromissos.filter(c => isFutureDate(c.data) && !c.concluido);
-  const compromissosConcluidos = state.compromissos.filter(c => c.concluido);
-  const totalAnotacoes = state.anotacoes.length;
+  const compromissosHoje = compromissos.filter(c => isToday(c.data));
+  const compromissosFuturos = compromissos.filter(c => isFutureDate(c.data) && !c.concluido);
+  const compromissosConcluidos = compromissos.filter(c => c.concluido);
+  const totalAnotacoes = anotacoes.length;
 
   const proximosCompromissos = compromissosFuturos
     .sort((a, b) => new Date(a.data + 'T' + a.hora).getTime() - new Date(b.data + 'T' + b.hora).getTime())
@@ -30,8 +36,8 @@ export default function HomeScreen() {
         <View style={styles.header}>
           <View style={styles.headerContent}>
             <TouchableOpacity style={styles.profileImageContainer} onPress={() => router.push('/profile')}>
-              {state.userProfile.fotoUri ? (
-                <Image source={{ uri: state.userProfile.fotoUri }} style={styles.profileImage} />
+              {userProfile.fotoUri ? (
+                <Image source={{ uri: userProfile.fotoUri }} style={styles.profileImage} />
               ) : (
                 <View style={styles.profileImagePlaceholder}>
                   <User size={20} color={colors.primary} />
@@ -40,7 +46,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
             <View style={styles.greetingContainer}>
               <Text style={[typography.screenTitle, { color: colors.text.primary }]}>
-                {getGreeting(state.userProfile.nome, state.userProfile.isCustomized)}
+                {getGreeting(userProfile.nome, userProfile.isCustomized)}
               </Text>
               <Text style={[typography.caption, { color: colors.text.secondary }]}>
                 Como vão os estudos hoje?

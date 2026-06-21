@@ -5,8 +5,19 @@ import { Platform } from 'react-native';
 
 export interface NotificationConfig {
   enabled: boolean;
-  tempo: number; // quantidade de tempo
-  unidade: 'minutos' | 'horas' | 'dias'; // unidade de tempo
+  tempo: number;
+  unidade: 'minutos' | 'horas' | 'dias';
+}
+
+export interface Categoria {
+  id: string;
+  nome: string;
+  cor: string;
+}
+
+export interface Materia {
+  id: string;
+  nome: string;
 }
 
 export interface Compromisso {
@@ -15,10 +26,13 @@ export interface Compromisso {
   descricao: string;
   data: string;
   hora: string;
-  categoria: 'aula' | 'prova' | 'trabalho' | 'outro';
+  categoria?: string;      
+  categoriaId?: string;    
+  materiaId?: string;      
   concluido: boolean;
   notificationId?: string;
-  notificationConfig?: NotificationConfig; // Nova propriedade para configuração da notificação
+  // CORRIGIDO: Nome idêntico ao backup (inglês) e tipo flexível para aceitar os dois formatos
+  notificationConfig?: any; 
 }
 
 export interface AnotacaoCalendario {
@@ -30,417 +44,208 @@ export interface AnotacaoCalendario {
 export interface UserProfile {
   nome: string;
   fotoUri?: string;
-  isCustomized?: boolean; // Nova propriedade para saber se foi personalizado
+  isCustomized?: boolean;
 }
 
 interface EstudayState {
   compromissos: Compromisso[];
   anotacoes: AnotacaoCalendario[];
   userProfile: UserProfile;
+  categorias: Categoria[]; 
+  materias: Materia[];     
   loading: boolean;
 }
 
 type EstudayAction =
   | { type: 'SET_LOADING'; payload: boolean }
-  | { type: 'LOAD_DATA'; payload: { compromissos: Compromisso[]; anotacoes: AnotacaoCalendario[]; userProfile: UserProfile } }
+  | { type: 'LOAD_DATA'; payload: { compromissos: Compromisso[]; anotacoes: AnotacaoCalendario[]; userProfile: UserProfile; categorias: Categoria[]; materias: Materia[] } }
   | { type: 'ADD_COMPROMISSO'; payload: Compromisso }
   | { type: 'UPDATE_COMPROMISSO'; payload: Compromisso }
   | { type: 'DELETE_COMPROMISSO'; payload: string }
+  | { type: 'TOGGLE_COMPROMISSO'; payload: string }
   | { type: 'ADD_ANOTACAO'; payload: AnotacaoCalendario }
   | { type: 'UPDATE_ANOTACAO'; payload: AnotacaoCalendario }
   | { type: 'DELETE_ANOTACAO'; payload: string }
-  | { type: 'UPDATE_PROFILE'; payload: UserProfile };
+  | { type: 'UPDATE_PROFILE'; payload: UserProfile }
+  | { type: 'ADD_CATEGORIA'; payload: Categoria }
+  | { type: 'UPDATE_CATEGORIA'; payload: Categoria }
+  | { type: 'DELETE_CATEGORIA'; payload: string }
+  | { type: 'ADD_MATERIA'; payload: Materia }
+  | { type: 'UPDATE_MATERIA'; payload: Materia }
+  | { type: 'DELETE_MATERIA'; payload: string };
 
 const initialState: EstudayState = {
   compromissos: [],
   anotacoes: [],
-  userProfile: {
-    nome: 'Estudante',
-    fotoUri: undefined,
-    isCustomized: false,
-  },
-  loading: false,
+  userProfile: { nome: 'Estudante' },
+  categorias: [],
+  materias: [],
+  loading: true,
 };
 
-// Configurar notificações
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
-
-// Opções de notificação predefinidas
-export const NOTIFICATION_OPTIONS = [
-  { label: 'Sem notificação', tempo: 0, unidade: 'minutos' as const, enabled: false },
-  { label: '15 minutos antes', tempo: 15, unidade: 'minutos' as const, enabled: true },
-  { label: '30 minutos antes', tempo: 30, unidade: 'minutos' as const, enabled: true },
-  { label: '1 hora antes', tempo: 1, unidade: 'horas' as const, enabled: true },
-  { label: '2 horas antes', tempo: 2, unidade: 'horas' as const, enabled: true },
-  { label: '3 horas antes', tempo: 3, unidade: 'horas' as const, enabled: true },
-  { label: '6 horas antes', tempo: 6, unidade: 'horas' as const, enabled: true },
-  { label: '12 horas antes', tempo: 12, unidade: 'horas' as const, enabled: true },
-  { label: '1 dia antes', tempo: 1, unidade: 'dias' as const, enabled: true },
-  { label: '2 dias antes', tempo: 2, unidade: 'dias' as const, enabled: true },
-  { label: '3 dias antes', tempo: 3, unidade: 'dias' as const, enabled: true },
-  { label: '1 semana antes', tempo: 7, unidade: 'dias' as const, enabled: true },
+const MATERIAS_PADRAO: Materia[] = [
+  { id: 'mat-1', nome: 'Matemática' },
+  { id: 'mat-2', nome: 'Física' },
+  { id: 'mat-3', nome: 'Química' },
+  { id: 'mat-4', nome: 'Biologia' },
+  { id: 'mat-5', nome: 'História' },
+  { id: 'mat-6', nome: 'Geografia' },
+  { id: 'mat-7', nome: 'Inglês' },
+  { id: 'mat-8', nome: 'Língua Portuguesa' },
+  { id: 'mat-9', nome: 'Literatura' },
+  { id: 'mat-10', nome: 'Produção Textual' },
+  { id: 'mat-11', nome: 'Filosofia' },
+  { id: 'mat-12', nome: 'Educação Física' },
+  { id: 'mat-13', nome: 'Computação' },
 ];
 
-// Função para converter tempo para milissegundos
-const convertToMilliseconds = (tempo: number, unidade: 'minutos' | 'horas' | 'dias'): number => {
-  switch (unidade) {
-    case 'minutos':
-      return tempo * 60 * 1000;
-    case 'horas':
-      return tempo * 60 * 60 * 1000;
-    case 'dias':
-      return tempo * 24 * 60 * 60 * 1000;
-    default:
-      return 0;
-  }
-};
+const CATEGORIAS_PADRAO: Categoria[] = [
+  { id: 'cat-1', nome: 'Prova', cor: '#FF4A4A' },
+  { id: 'cat-2', nome: 'Trabalho', cor: '#FF9F43' },
+  { id: 'cat-3', nome: 'Apresentação', cor: '#4EA8DE' },
+  { id: 'cat-4', nome: 'Atividade', cor: '#10AC84' },
+  { id: 'cat-5', nome: 'Outro', cor: '#8395A7' },
+];
 
-// Função para obter texto descritivo da notificação
-export const getNotificationText = (config: NotificationConfig): string => {
-  if (!config.enabled) return 'Sem notificação';
-  
-  const option = NOTIFICATION_OPTIONS.find(
-    opt => opt.tempo === config.tempo && opt.unidade === config.unidade && opt.enabled
-  );
-  
-  return option?.label || `${config.tempo} ${config.unidade} antes`;
-};
-
-// Função para obter saudação baseada na hora
-export const getGreeting = (nome: string, isCustomized: boolean = false): string => {
-  const hour = new Date().getHours();
-  
-  // Se não foi customizado, usa a saudação padrão
-  if (!isCustomized) {
-    if (hour >= 5 && hour < 12) {
-      return 'Bom dia, seja bem vindo!';
-    } else if (hour >= 12 && hour < 18) {
-      return 'Boa tarde, seja bem vindo!';
-    } else {
-      return 'Boa noite, seja bem vindo!';
-    }
-  }
-  
-  // Se foi customizado, usa o nome personalizado
-  if (hour >= 5 && hour < 12) {
-    return `Bom dia, ${nome}!`;
-  } else if (hour >= 12 && hour < 18) {
-    return `Boa tarde, ${nome}!`;
-  } else {
-    return `Boa noite, ${nome}!`;
-  }
-};
-
-function estudayReducer(state: EstudayState, action: EstudayAction): EstudayState {
+function reducer(state: EstudayState, action: EstudayAction): EstudayState {
   switch (action.type) {
-    case 'SET_LOADING':
-      return { ...state, loading: action.payload };
-    case 'LOAD_DATA':
-      return {
-        ...state,
-        compromissos: action.payload.compromissos,
-        anotacoes: action.payload.anotacoes,
-        userProfile: action.payload.userProfile,
-        loading: false,
-      };
-    case 'ADD_COMPROMISSO':
-      return {
-        ...state,
-        compromissos: [...state.compromissos, action.payload],
-      };
-    case 'UPDATE_COMPROMISSO':
-      return {
-        ...state,
-        compromissos: state.compromissos.map(c =>
-          c.id === action.payload.id ? action.payload : c
-        ),
-      };
-    case 'DELETE_COMPROMISSO':
-      return {
-        ...state,
-        compromissos: state.compromissos.filter(c => c.id !== action.payload),
-      };
-    case 'ADD_ANOTACAO':
-      return {
-        ...state,
-        anotacoes: [...state.anotacoes, action.payload],
-      };
-    case 'UPDATE_ANOTACAO':
-      return {
-        ...state,
-        anotacoes: state.anotacoes.map(a =>
-          a.id === action.payload.id ? action.payload : a
-        ),
-      };
-    case 'DELETE_ANOTACAO':
-      return {
-        ...state,
-        anotacoes: state.anotacoes.filter(a => a.id !== action.payload),
-      };
-    case 'UPDATE_PROFILE':
-      return {
-        ...state,
-        userProfile: action.payload,
-      };
-    default:
-      return state;
+    case 'SET_LOADING': return { ...state, loading: action.payload };
+    case 'LOAD_DATA': return { ...state, ...action.payload, loading: false };
+    case 'ADD_COMPROMISSO': return { ...state, compromissos: [...state.compromissos, action.payload] };
+    case 'UPDATE_COMPROMISSO': return { ...state, compromissos: state.compromissos.map(c => c.id === action.payload.id ? action.payload : c) };
+    case 'DELETE_COMPROMISSO': return { ...state, compromissos: state.compromissos.filter(c => c.id !== action.payload) };
+    case 'TOGGLE_COMPROMISSO': return { ...state, compromissos: state.compromissos.map(c => c.id === action.payload ? { ...c, concluido: !c.concluido } : c) };
+    case 'ADD_ANOTACAO': return { ...state, anotacoes: [...state.anotacoes, action.payload] };
+    case 'UPDATE_ANOTACAO': return { ...state, anotacoes: state.anotacoes.map(a => a.id === action.payload.id ? action.payload : a) };
+    case 'DELETE_ANOTACAO': return { ...state, anotacoes: state.anotacoes.filter(a => a.id !== action.payload) };
+    case 'UPDATE_PROFILE': return { ...state, userProfile: action.payload };
+    case 'ADD_CATEGORIA': return { ...state, categorias: [...state.categorias, action.payload] };
+    case 'UPDATE_CATEGORIA': return { ...state, categorias: state.categorias.map(c => c.id === action.payload.id ? action.payload : c) };
+    case 'DELETE_CATEGORIA': return { ...state, categorias: state.categorias.filter(c => c.id !== action.payload) };
+    case 'ADD_MATERIA': return { ...state, materias: [...state.materias, action.payload] };
+    case 'UPDATE_MATERIA': return { ...state, materias: state.materias.map(m => m.id === action.payload.id ? action.payload : m) };
+    case 'DELETE_MATERIA': return { ...state, materias: state.materias.filter(m => m.id !== action.payload) };
+    default: return state;
   }
 }
 
-interface EstudayContextType {
-  state: EstudayState;
-  dispatch: React.Dispatch<EstudayAction>;
-  addCompromisso: (compromisso: Omit<Compromisso, 'id'>) => Promise<void>;
-  updateCompromisso: (compromisso: Compromisso) => Promise<void>;
-  deleteCompromisso: (id: string) => Promise<void>;
-  addAnotacao: (anotacao: Omit<AnotacaoCalendario, 'id'>) => Promise<void>;
-  updateAnotacao: (anotacao: AnotacaoCalendario) => Promise<void>;
-  deleteAnotacao: (id: string) => Promise<void>;
-  updateProfile: (profile: UserProfile) => Promise<void>;
-  getAnotacoesPorData: (data: string) => AnotacaoCalendario[];
-  getCompromissosPorData: (data: string) => Compromisso[];
-}
+export const NOTIFICATION_OPTIONS = [
+  { id: '1', tempo: 5, unidade: 'minutos', label: '5 minutos antes' },
+  { id: '2', tempo: 15, unidade: 'minutos', label: '15 minutos antes' },
+  { id: '3', tempo: 30, unidade: 'minutos', label: '30 minutos antes' },
+  { id: '4', tempo: 1, unidade: 'horas', label: '1 hora antes' },
+  { id: '5', tempo: 1, unidade: 'dias', label: '1 dia antes' },
+];
 
-const EstudayContext = createContext<EstudayContextType | undefined>(undefined);
+// FUNÇÃO INTELIGENTE/HÍBRIDA: Lê tanto o formato de objeto único do backup quanto o formato de array do selector
+export const getNotificationText = (config?: any): string => {
+  if (!config) return 'Sem notificação';
+  
+  // Se for o formato do NotificationSelector (Objeto com array de notificações)
+  if (config.notifications && Array.isArray(config.notifications)) {
+    const enabled = config.notifications.filter((n: any) => n.enabled);
+    if (!enabled.length) return 'Sem notificação';
+    if (enabled.length === 1) return getNotificationText(enabled[0]);
+    return `${enabled.length} lembretes`;
+  }
 
-const STORAGE_KEYS = {
-  COMPROMISSOS: '@estuday:compromissos',
-  ANOTACOES: '@estuday:anotacoes',
-  USER_PROFILE: '@estuday:userProfile',
+  // Se for o formato simples/antigo (Objeto direto de configuração)
+  if (!config.enabled) return 'Sem notificação';
+  const item = NOTIFICATION_OPTIONS.find(o => o.tempo === config.tempo && o.unidade === config.unidade);
+  if (item) return item.label;
+  return `${config.tempo} ${config.unidade} antes`;
 };
 
-// Função para agendar notificação personalizada
-const scheduleNotification = async (compromisso: Omit<Compromisso, 'id' | 'notificationId'>): Promise<string | undefined> => {
-  if (Platform.OS === 'web') {
-    return undefined;
-  }
-
-  // Verificar se notificação está habilitada
-  if (!compromisso.notificationConfig?.enabled) {
-    return undefined;
-  }
-
-  try {
-    const { status } = await Notifications.requestPermissionsAsync();
-    if (status !== 'granted') {
-      return undefined;
-    }
-
-    const compromissoDateTime = new Date(`${compromisso.data}T${compromisso.hora}`);
-    const { tempo, unidade } = compromisso.notificationConfig;
-    
-    // Calcular tempo de antecedência em milissegundos
-    const antecedenciaMs = convertToMilliseconds(tempo, unidade);
-    const notificationTime = new Date(compromissoDateTime.getTime() - antecedenciaMs);
-
-    if (notificationTime <= new Date()) {
-      return undefined; // Não agendar se a data já passou
-    }
-
-    // Texto personalizado baseado no tempo de antecedência
-    let bodyText = '';
-    if (unidade === 'minutos') {
-      bodyText = `${compromisso.titulo} começará em ${tempo} ${tempo === 1 ? 'minuto' : 'minutos'}`;
-    } else if (unidade === 'horas') {
-      bodyText = `${compromisso.titulo} começará em ${tempo} ${tempo === 1 ? 'hora' : 'horas'}`;
-    } else {
-      if (tempo === 1) {
-        bodyText = `${compromisso.titulo} está agendado para amanhã às ${compromisso.hora}`;
-      } else {
-        bodyText = `${compromisso.titulo} está agendado para ${tempo} dias às ${compromisso.hora}`;
-      }
-    }
-
-    const notificationId = await Notifications.scheduleNotificationAsync({
-      content: {
-        title: 'Lembrete de Compromisso',
-        body: bodyText,
-        data: { 
-          compromissoId: Date.now().toString(),
-          categoria: compromisso.categoria,
-        },
-      },
-      trigger: notificationTime,
-    });
-
-    return notificationId;
-  } catch (error) {
-    console.error('Erro ao agendar notificação:', error);
-    return undefined;
-  }
-};
-
-// Função para cancelar notificação
-const cancelNotification = async (notificationId: string) => {
-  if (Platform.OS === 'web') {
-    return;
-  }
-
-  try {
-    await Notifications.cancelScheduledNotificationAsync(notificationId);
-  } catch (error) {
-    console.error('Erro ao cancelar notificação:', error);
-  }
-};
+export const EstudayContext = createContext<any>(null);
+export const StudayContext = EstudayContext;
 
 export function EstudayProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(estudayReducer, initialState);
+  const [state, dispatch] = useReducer(reducer, initialState);
 
-  // Carregar dados do AsyncStorage
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
-  // Salvar dados sempre que o estado mudar (exceto loading)
   useEffect(() => {
     if (!state.loading) {
-      saveData();
+      AsyncStorage.setItem('@compromissos', JSON.stringify(state.compromissos));
+      AsyncStorage.setItem('@anotacoes', JSON.stringify(state.anotacoes));
+      AsyncStorage.setItem('@profile', JSON.stringify(state.userProfile));
+      AsyncStorage.setItem('@categorias', JSON.stringify(state.categorias));
+      AsyncStorage.setItem('@materias', JSON.stringify(state.materias));
     }
-  }, [state.compromissos, state.anotacoes, state.userProfile, state.loading]);
+  }, [state]);
 
   const loadData = async () => {
     try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      
-      const [compromissosData, anotacoesData, userProfileData] = await Promise.all([
-        AsyncStorage.getItem(STORAGE_KEYS.COMPROMISSOS),
-        AsyncStorage.getItem(STORAGE_KEYS.ANOTACOES),
-        AsyncStorage.getItem(STORAGE_KEYS.USER_PROFILE),
-      ]);
+      const compromissosData = await AsyncStorage.getItem('@compromissos');
+      const anotacoesData = await AsyncStorage.getItem('@anotacoes');
+      const profileData = await AsyncStorage.getItem('@profile');
+      const categoriasData = await AsyncStorage.getItem('@categorias');
+      const materiasData = await AsyncStorage.getItem('@materias');
 
       const compromissos = compromissosData ? JSON.parse(compromissosData) : [];
       const anotacoes = anotacoesData ? JSON.parse(anotacoesData) : [];
-      const userProfile = userProfileData ? JSON.parse(userProfileData) : { 
-        nome: 'Estudante', 
-        fotoUri: undefined,
-        isCustomized: false 
-      };
+      const userProfile = profileData ? JSON.parse(profileData) : { nome: 'Estudante' };
+      const categorias = categoriasData ? JSON.parse(categoriasData) : CATEGORIAS_PADRAO;
+      const materias = materiasData ? JSON.parse(materiasData) : MATERIAS_PADRAO;
 
-      // Migrar dados antigos se não tiverem a propriedade isCustomized
-      if (userProfile.isCustomized === undefined) {
-        userProfile.isCustomized = (userProfile.nome !== 'Estudante') || !!userProfile.fotoUri;
-      }
-
-      // Migrar compromissos antigos sem configuração de notificação
-      const compromissosMigrados = compromissos.map((c: any) => ({
-        ...c,
-        notificationConfig: c.notificationConfig || {
-          enabled: true,
-          tempo: 1,
-          unidade: 'dias'
-        }
-      }));
-
-      dispatch({ type: 'LOAD_DATA', payload: { compromissos: compromissosMigrados, anotacoes, userProfile } });
+      dispatch({ type: 'LOAD_DATA', payload: { compromissos, anotacoes, userProfile, categorias, materias } });
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
       dispatch({ type: 'SET_LOADING', payload: false });
     }
   };
 
-  const saveData = async () => {
-    try {
-      await Promise.all([
-        AsyncStorage.setItem(STORAGE_KEYS.COMPROMISSOS, JSON.stringify(state.compromissos)),
-        AsyncStorage.setItem(STORAGE_KEYS.ANOTACOES, JSON.stringify(state.anotacoes)),
-        AsyncStorage.setItem(STORAGE_KEYS.USER_PROFILE, JSON.stringify(state.userProfile)),
-      ]);
-      console.log('Dados salvos com sucesso:', state.userProfile); // Debug
-    } catch (error) {
-      console.error('Erro ao salvar dados:', error);
-    }
-  };
-
-  const addCompromisso = async (compromisso: Omit<Compromisso, 'id'>) => {
-    // Se não tem configuração de notificação, usar padrão (1 dia antes)
-    const compromissoComNotificacao = {
-      ...compromisso,
-      notificationConfig: compromisso.notificationConfig || {
-        enabled: true,
-        tempo: 1,
-        unidade: 'dias' as const
-      }
-    };
-
-    const notificationId = await scheduleNotification(compromissoComNotificacao);
-    const novoCompromisso: Compromisso = {
-      ...compromissoComNotificacao,
-      id: Date.now().toString(),
-      notificationId,
-    };
+  const addCompromisso = async (compromisso: Omit<Compromisso, 'id' | 'concluido'>) => {
+    const novoCompromisso: Compromisso = { ...compromisso, id: Date.now().toString(), concluido: false };
     dispatch({ type: 'ADD_COMPROMISSO', payload: novoCompromisso });
   };
 
-  const updateCompromisso = async (compromisso: Compromisso) => {
-    // Cancelar notificação anterior se existir
-    if (compromisso.notificationId) {
-      await cancelNotification(compromisso.notificationId);
-    }
-
-    // Agendar nova notificação
-    const notificationId = await scheduleNotification(compromisso);
-    const compromissoAtualizado = { ...compromisso, notificationId };
-    
-    dispatch({ type: 'UPDATE_COMPROMISSO', payload: compromissoAtualizado });
-  };
-
-  const deleteCompromisso = async (id: string) => {
+  const updateCompromisso = async (id: string, compromissoData: Partial<Compromisso>) => {
     const compromisso = state.compromissos.find(c => c.id === id);
-    if (compromisso?.notificationId) {
-      await cancelNotification(compromisso.notificationId);
-    }
-    dispatch({ type: 'DELETE_COMPROMISSO', payload: id });
+    if (compromisso) dispatch({ type: 'UPDATE_COMPROMISSO', payload: { ...compromisso, ...compromissoData } });
   };
 
-  const addAnotacao = async (anotacao: Omit<AnotacaoCalendario, 'id'>) => {
-    const novaAnotacao: AnotacaoCalendario = {
-      ...anotacao,
-      id: Date.now().toString(),
-    };
+  const deleteCompromisso = async (id: string) => dispatch({ type: 'DELETE_COMPROMISSO', payload: id });
+  const toggleCompromisso = async (id: string) => dispatch({ type: 'TOGGLE_COMPROMISSO', payload: id });
+  
+  const addAnotacao = async (data: string, texto: string) => {
+    const novaAnotacao: AnotacaoCalendario = { id: Date.now().toString(), data, texto };
     dispatch({ type: 'ADD_ANOTACAO', payload: novaAnotacao });
   };
 
-  const updateAnotacao = async (anotacao: AnotacaoCalendario) => {
-    dispatch({ type: 'UPDATE_ANOTACAO', payload: anotacao });
+  const updateAnotacao = async (id: string, texto: string) => {
+    const anotacao = state.anotacoes.find(a => a.id === id);
+    if (anotacao) dispatch({ type: 'UPDATE_ANOTACAO', payload: { ...anotacao, texto } });
   };
 
-  const deleteAnotacao = async (id: string) => {
-    dispatch({ type: 'DELETE_ANOTACAO', payload: id });
-  };
-
-  const updateProfile = async (profile: UserProfile) => {
-    console.log('Atualizando perfil:', profile); // Debug
-    dispatch({ type: 'UPDATE_PROFILE', payload: profile });
-  };
-
-  const getAnotacoesPorData = (data: string): AnotacaoCalendario[] => {
-    return state.anotacoes.filter(anotacao => anotacao.data === data);
-  };
-
-  const getCompromissosPorData = (data: string): Compromisso[] => {
-    return state.compromissos.filter(compromisso => compromisso.data === data);
-  };
+  const deleteAnotacao = async (id: string) => dispatch({ type: 'DELETE_ANOTACAO', payload: id });
+  const updateProfile = async (profile: UserProfile) => dispatch({ type: 'UPDATE_PROFILE', payload: profile });
+  const getAnotacoesPorData = (data: string): AnotacaoCalendario[] => state.anotacoes.filter(anotacao => anotacao.data === data);
+  const getCompromissosPorData = (data: string): Compromisso[] => state.compromissos.filter(compromisso => compromisso.data === data);
 
   return (
     <EstudayContext.Provider
       value={{
         state,
         dispatch,
+        categorias: state.categorias,
+        categories: state.categorias,
+        materias: state.materias,
         addCompromisso,
+        adicionarCompromisso: addCompromisso,
         updateCompromisso,
         deleteCompromisso,
+        toggleCompromisso,
         addAnotacao,
         updateAnotacao,
         deleteAnotacao,
         updateProfile,
         getAnotacoesPorData,
         getCompromissosPorData,
+        addMateria: (nome: string) => dispatch({ type: 'ADD_MATERIA', payload: { id: Date.now().toString(), nome } }),
+        deleteMateria: (id: string) => dispatch({ type: 'DELETE_MATERIA', payload: id }),
+        addCategoria: (nome: string, cor: string) => dispatch({ type: 'ADD_CATEGORIA', payload: { id: Date.now().toString(), nome, cor } }),
+        deleteCategoria: (id: string) => dispatch({ type: 'DELETE_CATEGORIA', payload: id })
       }}
     >
       {children}
@@ -448,10 +253,8 @@ export function EstudayProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function useEstuday() {
-  const context = useContext(EstudayContext);
-  if (context === undefined) {
-    throw new Error('useEstuday must be used within a EstudayProvider');
-  }
-  return context;
-}
+export const StudayProvider = EstudayProvider;
+export default EstudayProvider;
+
+export const useEstuday = () => useContext(EstudayContext);
+export const useStuday = useEstuday;

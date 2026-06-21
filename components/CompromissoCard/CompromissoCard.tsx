@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Clock, Edit3, Trash2, CheckCircle, Circle, Bell, BellOff } from 'lucide-react-native';
-import { Compromisso, getNotificationText } from '@/contexts/StudayContext';
+import { Edit3, Trash2, CheckCircle, Circle, Bell, BellOff } from 'lucide-react-native';
+import { Compromisso, getNotificationText, useEstuday } from '@/contexts/StudayContext';
 import { formatDateBR, isExpired } from '@/utils/dateUtils';
 import { BaseCard } from '@/components/BaseCard/BaseCard';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -17,11 +17,6 @@ interface CompromissoCardProps {
   onPress?: () => void;
 }
 
-const getCategoriaLabel = (categoria: string) => {
-  const labels: Record<string, string> = { aula: 'Aula', prova: 'Prova', trabalho: 'Trabalho', outro: 'Outro' };
-  return labels[categoria] ?? 'Outro';
-};
-
 const getMultipleNotificationText = (config?: MultipleNotificationConfig): string => {
   if (!config?.notifications?.length) return 'Sem notificação';
   const enabled = config.notifications.filter(n => n.enabled);
@@ -30,115 +25,107 @@ const getMultipleNotificationText = (config?: MultipleNotificationConfig): strin
   return `${enabled.length} lembretes`;
 };
 
-export function CompromissoCard({
-  compromisso, onEdit, onDelete, onToggleComplete, variant = 'compromisso', onPress
+export function CompromissoCard({ 
+  compromisso, 
+  onEdit, 
+  onDelete, 
+  onToggleComplete,
+  variant = 'compromisso',
+  onPress
 }: CompromissoCardProps) {
   const { colors, typography } = useTheme();
+  const { categorias, categories } = useEstuday(); // Puxa as categorias dinâmicas
   const styles = makeStyles(colors);
 
-  const getCategoriaColor = (categoria: string) => {
-    const map: Record<string, string> = {
-      aula: colors.category.aula,
-      prova: colors.category.prova,
-      trabalho: colors.category.trabalho,
-      outro: colors.category.outro,
-    };
-    return map[categoria] ?? colors.text.secondary;
-  };
+  // Busca a categoria correta pelo ID
+  const listaCategorias = categorias || (categories as any) || [];
+  const categoriaObj = listaCategorias.find((c: any) => c.id === compromisso.categoriaId || c.id === compromisso.categoria);
+  const corCategoria = categoriaObj ? categoriaObj.cor : colors.primary;
+  const nomeCategoria = categoriaObj ? categoriaObj.nome : (compromisso.categoria || 'Outro');
 
-  const categoriaColor = getCategoriaColor(compromisso.categoria);
-  const isCompromissoExpired = isExpired(compromisso.data, compromisso.hora) && !compromisso.concluido;
-
-  const getCardStatus = () => {
-    if (compromisso.concluido) return 'completed';
-    if (isCompromissoExpired) return 'expired';
-    return 'normal';
-  };
-
-  const getNotificationConfig = (): MultipleNotificationConfig => {
-    if (compromisso.multipleNotificationConfig) return compromisso.multipleNotificationConfig;
-    if (compromisso.notificationConfig) {
-      return { notifications: compromisso.notificationConfig.enabled ? [compromisso.notificationConfig] : [] };
-    }
-    return { notifications: [] };
-  };
-
-  const notificationConfig = getNotificationConfig();
-  const hasNotifications = notificationConfig.notifications.length > 0;
+  const isCompromissoExpired = !compromisso.concluido && isExpired(compromisso.data, compromisso.hora);
+  const notificationsEnabled = compromisso.notificacaoConfig?.notifications?.some(n => n.enabled);
 
   return (
-    <BaseCard variant={variant} sideBarColor={categoriaColor} status={getCardStatus()} onPress={onPress}>
-      {/* Header */}
+    <BaseCard
+      variant={variant}
+      status={compromisso.concluido ? 'completed' : (isCompromissoExpired ? 'expired' : 'normal')}
+      onPress={onPress}
+      sideBarColor={corCategoria} // Aplica a cor da categoria na barra lateral!
+    >
       <View style={styles.header}>
-        <TouchableOpacity onPress={onToggleComplete} style={styles.checkButton}>
-          {compromisso.concluido
-            ? <CheckCircle size={20} color={colors.success} />
-            : <Circle size={20} color={colors.text.secondary} />}
+        <TouchableOpacity 
+          onPress={onToggleComplete}
+          style={styles.checkButton}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          {compromisso.concluido ? (
+            <CheckCircle size={24} color={colors.success} />
+          ) : (
+            <Circle size={24} color={isCompromissoExpired ? colors.danger : colors.text.tertiary} />
+          )}
         </TouchableOpacity>
 
         <View style={styles.titleContainer}>
           <Text style={[
-            typography.cardTitle,
-            { color: colors.text.primary },
-            compromisso.concluido && { textDecorationLine: 'line-through', color: colors.text.secondary },
-          ]}>
+            typography.subtitle,
+            { color: colors.text.primary, marginBottom: 4 },
+            compromisso.concluido && { textDecorationLine: 'line-through', color: colors.text.secondary }
+          ]} numberOfLines={2}>
             {compromisso.titulo}
           </Text>
-          <View style={styles.categoria}>
-            <View style={[styles.categoriaIndicator, { backgroundColor: categoriaColor }]} />
-            <Text style={[typography.small, { color: colors.text.secondary }]}>
-              {getCategoriaLabel(compromisso.categoria)}
+          
+          <View style={styles.infoRow}>
+            <View style={styles.infoItem}>
+              <View style={styles.categoria}>
+                <View style={[styles.categoriaIndicator, { backgroundColor: corCategoria }]} />
+                <Text style={[typography.caption, { color: colors.text.secondary }]}>
+                  {nomeCategoria}
+                </Text>
+              </View>
+            </View>
+            <Text style={[typography.caption, { color: colors.text.secondary }]}>
+              {compromisso.hora}
             </Text>
           </View>
         </View>
 
-        {(variant !== 'compromisso-modal' || !onPress) && (
-          <View style={styles.actions}>
-            <TouchableOpacity onPress={onEdit} style={styles.actionButton}>
-              <Edit3 size={16} color={colors.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={onDelete} style={styles.actionButton}>
-              <Trash2 size={16} color={colors.danger} />
-            </TouchableOpacity>
-          </View>
-        )}
+        <View style={styles.actions}>
+          <TouchableOpacity onPress={onEdit} style={styles.actionButton}>
+            <Edit3 size={18} color={colors.text.secondary} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onDelete} style={styles.actionButton}>
+            <Trash2 size={18} color={colors.danger} />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Info */}
-      <View style={{ marginBottom: 8 }}>
-        <View style={styles.infoRow}>
-          <View style={styles.infoItem}>
-            <Clock size={14} color={colors.text.secondary} />
-            <Text style={[typography.caption, { color: colors.text.secondary }]}>
-              {formatDateBR(compromisso.data)} às {compromisso.hora}
-            </Text>
+      <View style={[styles.infoRow, { marginTop: 8 }]}>
+        <View style={styles.infoItem}>
+          <View style={styles.bellContainer}>
+            {notificationsEnabled ? (
+              <Bell size={14} color={colors.primary} />
+            ) : (
+              <BellOff size={14} color={colors.text.tertiary} />
+            )}
+            {compromisso.notificacaoConfig?.notifications?.length > 1 && notificationsEnabled && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  {compromisso.notificacaoConfig.notifications.filter(n => n.enabled).length}
+                </Text>
+              </View>
+            )}
           </View>
-          <View style={styles.infoItem}>
-            <View style={styles.bellContainer}>
-              {hasNotifications ? (
-                <>
-                  <Bell size={12} color={colors.primary} />
-                  {notificationConfig.notifications.length > 1 && (
-                    <View style={styles.badge}>
-                      <Text style={styles.badgeText}>{notificationConfig.notifications.length}</Text>
-                    </View>
-                  )}
-                </>
-              ) : (
-                <BellOff size={12} color={colors.text.tertiary} />
-              )}
-            </View>
-            <Text style={[typography.small, { color: hasNotifications ? colors.text.secondary : colors.text.tertiary }]}>
-              {getMultipleNotificationText(notificationConfig)}
-            </Text>
-          </View>
+          <Text style={[typography.caption, { color: notificationsEnabled ? colors.primary : colors.text.tertiary }]}>
+            {getMultipleNotificationText(compromisso.notificacaoConfig)}
+          </Text>
         </View>
       </View>
 
       {compromisso.descricao && (
         <Text style={[
           typography.caption,
-          { color: colors.text.secondary, lineHeight: 18 },
+          { color: colors.text.secondary, lineHeight: 18, marginTop: 8 },
           compromisso.concluido && { textDecorationLine: 'line-through' },
         ]}>
           {compromisso.descricao}
@@ -166,7 +153,7 @@ function makeStyles(colors: typeof lightColors) {
     infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
     infoItem: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
     bellContainer: { position: 'relative', flexDirection: 'row', alignItems: 'center' },
-    badge: { position: 'absolute', top: -6, right: -6, backgroundColor: colors.danger, borderRadius: 6, minWidth: 12, height: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2 },
-    badgeText: { fontSize: 8, fontWeight: '600', color: colors.text.white },
+    badge: { position: 'absolute', top: -6, right: -6, backgroundColor: colors.danger, borderRadius: 6, minWidth: 14, height: 14, alignItems: 'center', justifyContent: 'center' },
+    badgeText: { fontSize: 8, color: '#FFF', fontWeight: 'bold' }
   });
 }

@@ -1,12 +1,15 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useStuday } from '@/contexts/StudayContext'; 
 import { lightColors } from '@/components/theme/colors';
 
 interface Compromisso {
   id: string;
   data: string;
-  categoria: string;
+  categoriaId?: string;
+  categoria?: string;
+  materiaId?: string;
   titulo: string;
   hora: string;
 }
@@ -26,29 +29,36 @@ interface CalendarDayProps {
   onPress: (date: string) => void;
 }
 
-export function CalendarDay({ day, dateString, isToday, compromissos, anotacoes, onPress }: CalendarDayProps) {
+export function CalendarDay({ 
+  day, 
+  dateString = '', 
+  isToday, 
+  compromissos = [], 
+  anotacoes = [], 
+  onPress 
+}: CalendarDayProps) {
   const { colors } = useTheme();
+  const { categorias } = useStuday(); 
   const styles = makeStyles(colors);
 
-  const getClassificationColor = (categoria: string) => {
-    const map: Record<string, string> = {
-      aula: colors.category.aula,
-      prova: colors.category.prova,
-      trabalho: colors.category.trabalho,
-      outro: colors.category.outro,
-    };
-    return map[categoria] || colors.text.tertiary;
+  const getClassificationColor = (categoriaId: string | undefined) => {
+    if (!categoriaId) return colors.primary;
+    const categoriaEncontrada = categorias?.find(c => c.id === categoriaId);
+    return categoriaEncontrada ? categoriaEncontrada.cor : colors.text.tertiary;
   };
 
-  const getClassificationAbbr = (categoria: string) => {
-    const abbr: Record<string, string> = { aula: 'AULA', prova: 'PROVA', trabalho: 'TRAB', outro: 'OUTRO' };
-    return abbr[categoria] || categoria.substring(0, 4).toUpperCase();
+  const getClassificationAbbr = (categoriaId: string | undefined) => {
+    if (!categoriaId) return 'GERA';
+    const categoriaEncontrada = categorias?.find(c => c.id === categoriaId);
+    if (!categoriaEncontrada) return 'OUTR';
+    return categoriaEncontrada.nome.substring(0, 4).toUpperCase();
   };
 
   const hasOverdueCompromissos = () => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const [y, m, d] = dateString.split('-').map(Number);
+    
+    const [y, m, d] = dateString && typeof dateString === 'string' ? dateString.split('-').map(Number) : [2026, 1, 1];
     const compromissoDate = new Date(y, m - 1, d);
 
     if (compromissoDate < today && compromissos.length > 0) return true;
@@ -66,7 +76,8 @@ export function CalendarDay({ day, dateString, isToday, compromissos, anotacoes,
   };
 
   const groupedCompromissos = compromissos.reduce((acc, c) => {
-    acc[c.categoria] = (acc[c.categoria] || 0) + 1;
+    const cat = c.categoriaId || c.categoria || 'default';
+    acc[cat] = (acc[cat] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
@@ -98,10 +109,10 @@ export function CalendarDay({ day, dateString, isToday, compromissos, anotacoes,
               <Text style={styles.tagText}>NOTA{anotacoes.length > 1 && ` ${anotacoes.length}`}</Text>
             </View>
           )}
-          {compromissosToShow.map(([categoria, count]) => (
-            <View key={categoria} style={[styles.tag, { backgroundColor: getClassificationColor(categoria) }]}>
+          {compromissosToShow.map(([catId, count]) => (
+            <View key={catId} style={[styles.tag, { backgroundColor: getClassificationColor(catId) }]}>
               <Text style={styles.tagText}>
-                {getClassificationAbbr(categoria)}{count > 1 && ` ${count}`}
+                {getClassificationAbbr(catId)}{count > 1 && ` ${count}`}
               </Text>
             </View>
           ))}
@@ -123,7 +134,7 @@ function makeStyles(colors: typeof lightColors) {
     dayContent: { flex: 1, width: '100%', padding: 4, alignItems: 'center' },
     dayNumberContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
     dayNumber: { fontSize: 16, color: colors.text.primary, fontWeight: '500' },
-    todayText: { color: colors.text.white, fontWeight: 'bold' },
+    todayText: { color: '#ffffff', fontWeight: 'bold' },
     itemsContainer: { flex: 1, width: '100%', alignItems: 'center', gap: 2 },
     tag: { paddingHorizontal: 4, paddingVertical: 2, borderRadius: 6, minWidth: 28, alignItems: 'center' },
     tagText: { fontSize: 9, fontWeight: '600', color: '#fff', textAlign: 'center' },
@@ -131,5 +142,3 @@ function makeStyles(colors: typeof lightColors) {
     overdueText: { fontSize: 10, fontWeight: 'bold', color: '#fff', textAlign: 'center', lineHeight: 12 },
   });
 }
-
-export { CalendarDay };

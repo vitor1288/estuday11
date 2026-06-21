@@ -1,141 +1,147 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Plus, Calendar as CalendarIcon } from 'lucide-react-native';
-import { useEstuday, Compromisso } from '@/contexts/StudayContext';
-import { CompromissoCard } from '@/components/CompromissoCard/CompromissoCard';
-import { CompromissoModal } from '@/components/CompromissoModal/CompromissoModal';
-import { formatDate } from '@/utils/dateUtils';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useStuday } from '@/contexts/StudayContext';
+import { FilterBar } from '@/components/FilterBar';
+import { ManageDataModal } from '@/components/ManageDataModal';
+import { filtrarEOrdenarCompromissos, OrderOption, OrderDirection } from '@/utils/filterUtils';
 import { lightColors } from '@/components/theme/colors';
-import { BaseButton } from '@/components/BaseButton/BaseButton';
-
-type FilterType = 'todos' | 'pendentes' | 'realizar' | 'concluidos' | 'hoje';
+import { Settings, Calendar as CalendarIcon, Clock } from 'lucide-react-native';
 
 export default function CompromissosScreen() {
-  const { state, updateCompromisso, deleteCompromisso } = useEstuday();
   const { colors, typography } = useTheme();
   const styles = makeStyles(colors);
+  const { 
+  compromissos = [], 
+  materias = [], 
+  categorias = [] 
+} = useStuday();
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingCompromisso, setEditingCompromisso] = useState<Compromisso | null>(null);
-  const [filter, setFilter] = useState<FilterType>('realizar');
+  // Estados dos Filtros e Ordenação
+  const [busca, setBusca] = useState('');
+  const [materiaSelecionada, setMateriaSelecionada] = useState<string | null>(null);
+  const [ordenacao, setOrdenacao] = useState<OrderOption>('proximo');
+  const [direcao, setDirecao] = useState<OrderDirection>('asc');
 
-  const isOverdue = (compromisso: Compromisso): boolean =>
-    new Date(`${compromisso.data}T${compromisso.hora}`) < new Date();
+  // Estado do Modal de Gerenciamento
+  const [modalGerenciarVisivel, setModalGerenciarVisivel] = useState(false);
 
-  const filteredCompromissos = useMemo(() => {
-    let filtered = state.compromissos;
-    switch (filter) {
-      case 'pendentes': filtered = filtered.filter(c => !c.concluido && isOverdue(c)); break;
-      case 'realizar': filtered = filtered.filter(c => !c.concluido); break;
-      case 'concluidos': filtered = filtered.filter(c => c.concluido); break;
-      case 'hoje': const today = formatDate(new Date()); filtered = filtered.filter(c => c.data === today); break;
-    }
-    return filtered.sort((a, b) => new Date(a.data + 'T' + a.hora).getTime() - new Date(b.data + 'T' + b.hora).getTime());
-  }, [state.compromissos, filter]);
+  // Aplica o motor matemático de busca e ordenação
+  const compromissosFiltrados = filtrarEOrdenarCompromissos(
+    compromissos,
+    busca,
+    materiaSelecionada,
+    null, // Não estamos filtrando por data fixa nesta aba geral
+    ordenacao,
+    direcao
+  );
 
-  const handleAddCompromisso = () => { setEditingCompromisso(null); setModalVisible(true); };
-  const handleEditCompromisso = (compromisso: Compromisso) => { setEditingCompromisso(compromisso); setModalVisible(true); };
-  const handleDeleteCompromisso = (compromisso: Compromisso) => {
-    Alert.alert('Confirmar exclusão', `Tem certeza que deseja excluir "${compromisso.titulo}"?`, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Excluir', style: 'destructive', onPress: () => deleteCompromisso(compromisso.id) },
-    ]);
+  // Funções de auxílio para resgatar dados dos IDs
+  const getCategoria = (id: string) => categorias.find(c => c.id === id);
+  
+  // Formata a data (YYYY-MM-DD -> DD/MM/YYYY)
+  const formatarData = (dataStr: string) => {
+    if (!dataStr) return '';
+    const [y, m, d] = dataStr.split('-');
+    return `${d}/${m}/${y}`;
   };
-  const handleToggleComplete = (compromisso: Compromisso) =>
-    updateCompromisso({ ...compromisso, concluido: !compromisso.concluido });
-
-  const filterButtons: { key: FilterType; label: string }[] = [
-    { key: 'pendentes', label: 'Pendentes' },
-    { key: 'realizar', label: 'Realizar' },
-    { key: 'hoje', label: 'Hoje' },
-    { key: 'concluidos', label: 'Concluídos' },
-    { key: 'todos', label: 'Todos' },
-  ];
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
+    <View style={styles.container}>
+      {/* Cabeçalho Customizado da Tela */}
       <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <CalendarIcon size={24} color={colors.primary} />
-          <Text style={[typography.screenTitle, { color: colors.text.primary }]}>Compromissos</Text>
-        </View>
-        <BaseButton
-          variant="primary"
-          size="sm"
-          icon={<Plus size={16} color={colors.text.white} />}
-          onPress={handleAddCompromisso}
+        <Text style={[typography.title, { color: colors.text.primary }]}>Meus Compromissos</Text>
+        <TouchableOpacity 
+          style={styles.btnGerenciar} 
+          onPress={() => setModalGerenciarVisivel(true)}
         >
-          Novo
-        </BaseButton>
+          <Settings size={20} color={colors.primary} />
+          <Text style={styles.btnGerenciarText}>Gerenciar</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Filtros */}
-      <View style={styles.filterContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterContent}>
-          {filterButtons.map((item) => (
-            <BaseButton
-              key={item.key}
-              variant={filter === item.key ? 'primary' : 'secondary'}
-              size="sm"
-              onPress={() => setFilter(item.key)}
-            >
-              {item.label}
-            </BaseButton>
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* Conteúdo */}
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {filteredCompromissos.length > 0 ? (
-          filteredCompromissos.map((compromisso) => (
-            <CompromissoCard
-              key={compromisso.id}
-              compromisso={compromisso}
-              onEdit={() => handleEditCompromisso(compromisso)}
-              onDelete={() => handleDeleteCompromisso(compromisso)}
-              onToggleComplete={() => handleToggleComplete(compromisso)}
-              variant="compromisso"
-            />
-          ))
-        ) : (
-          <View style={styles.emptyState}>
-            <CalendarIcon size={64} color={colors.border.medium} />
-            <Text style={[typography.body, { color: colors.text.secondary, textAlign: 'center' }]}>
-              {filter === 'pendentes' && 'Nenhum compromisso pendente'}
-              {filter === 'realizar' && 'Nenhum compromisso para realizar'}
-              {filter === 'hoje' && 'Nenhum compromisso para hoje'}
-              {filter === 'concluidos' && 'Nenhum compromisso concluído'}
-              {filter === 'todos' && 'Nenhum compromisso cadastrado'}
-            </Text>
-            <BaseButton variant="primary" onPress={handleAddCompromisso}>
-              Adicionar compromisso
-            </BaseButton>
-          </View>
-        )}
-      </ScrollView>
-
-      <CompromissoModal
-        visible={modalVisible}
-        compromisso={editingCompromisso}
-        onClose={() => { setModalVisible(false); setEditingCompromisso(null); }}
-        onSave={() => setEditingCompromisso(null)}
+      {/* Barra de Filtros Premium Unificada */}
+      <FilterBar
+        busca={busca}
+        setBusca={setBusca}
+        materiaSelecionada={materiaSelecionada}
+        setMateriaSelecionada={setMateriaSelecionada}
+        ordenacao={ordenacao}
+        setOrdenacao={setOrdenacao}
+        direcao={direcao}
+        setDirecao={setDirecao}
+        materias={materias}
       />
-    </SafeAreaView>
+
+      {/* Lista de Compromissos Filtrada */}
+      <FlatList
+        data={compromissosFiltrados}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={[typography.body, { color: colors.text.secondary, textAlign: 'center' }]}>
+              Nenhum compromisso encontrado com os filtros atuais.
+            </Text>
+          </View>
+        }
+        renderItem={({ item }) => {
+          const categoriaObj = getCategoria(item.categoriaId);
+          const corCard = categoriaObj ? categoriaObj.cor : colors.primary;
+
+          return (
+            <View style={[styles.card, { borderLeftColor: corCard }]}>
+              <View style={styles.cardHeader}>
+                <Text style={[typography.subtitle, styles.cardTitle]}>{item.titulo}</Text>
+                <View style={[styles.badge, { backgroundColor: corCard + '20' }]}>
+                  <Text style={[styles.badgeText, { color: corCard }]}>
+                    {categoriaObj ? categoriaObj.nome : 'Outro'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.cardFooter}>
+                <View style={styles.infoRow}>
+                  <CalendarIcon size={14} color={colors.text.secondary} />
+                  <Text style={[typography.small, styles.infoText]}>{formatarData(item.data)}</Text>
+                </View>
+                {item.hora ? (
+                  <View style={styles.infoRow}>
+                    <Clock size={14} color={colors.text.secondary} />
+                    <Text style={[typography.small, styles.infoText]}>{item.hora}</Text>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+          );
+        }}
+      />
+
+      {/* Modal Central de Gerenciamento de Matérias/Categorias */}
+      <ManageDataModal
+        visible={modalGerenciarVisivel}
+        onClose={() => setModalGerenciarVisivel(false)}
+      />
+    </View>
   );
 }
 
 function makeStyles(colors: typeof lightColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background.secondary },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, backgroundColor: colors.background.primary, borderBottomWidth: 1, borderBottomColor: colors.border.light },
-    headerContent: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    filterContainer: { backgroundColor: colors.background.primary, borderBottomWidth: 1, borderBottomColor: colors.border.light },
-    filterContent: { paddingHorizontal: 20, paddingVertical: 12, gap: 8 },
-    content: { flex: 1, padding: 20 },
-    emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60, gap: 16 },
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 60, paddingBottom: 15, backgroundColor: colors.background.primary },
+    btnGerenciar: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primary + '1A', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
+    btnGerenciarText: { color: colors.primary, fontWeight: '600', marginLeft: 6, fontSize: 13 },
+    listContent: { padding: 20, paddingBottom: 100 },
+    emptyContainer: { paddingVertical: 40, alignItems: 'center' },
+    card: { backgroundColor: colors.background.primary, borderRadius: 12, padding: 16, marginBottom: 12, borderLeftWidth: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
+    cardTitle: { flex: 1, color: colors.text.primary, marginRight: 10 },
+    badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+    badgeText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
+    cardFooter: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+    infoRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    infoText: { color: colors.text.secondary },
   });
 }
