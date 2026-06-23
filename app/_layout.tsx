@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
-import { StudayProvider } from '@/contexts/StudayContext';
+import { EstudayProvider } from '@/contexts/StudayContext'; // ✅ Corrigido para EstudayProvider (com E)
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 
 function AppContent() {
@@ -23,9 +23,9 @@ export default function RootLayout() {
   useFrameworkReady();
   return (
     <ThemeProvider>
-      <StudayProvider>
+      <EstudayProvider> {/* ✅ Corrigido aqui também */}
         <AppContent />
-      </StudayProvider>
+      </EstudayProvider>
     </ThemeProvider>
   );
 }

@@ -1,37 +1,36 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
-import { useStuday } from '@/contexts/StudayContext';
+import { useEstuday } from '@/contexts/StudayContext';
+import { getMonthName, getDaysInMonth, getFirstDayOfMonth, createDateString, isToday } from '@/utils/dateUtils';
 import { CalendarDay } from '@/components/Calendar/CalendarDay';
 import { useTheme } from '@/contexts/ThemeContext';
 import { lightColors } from '@/components/theme/colors';
 
-export function Calendar({ onDayPress }: { onDayPress: (date: string) => void }) {
-  const { state } = useStuday();
-  const { colors } = useTheme();
+interface CalendarProps {
+  onDayPress: (date: string) => void;
+}
+
+export function Calendar({ onDayPress }: CalendarProps) {
+  const { state } = useEstuday();
+  const { colors, typography } = useTheme();
   const styles = makeStyles(colors);
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
-  
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDayOfMonth = new Date(year, month, 1).getDay();
-  
+  const daysInMonth = getDaysInMonth(year, month);
+  const firstDayOfMonth = getFirstDayOfMonth(year, month);
   const weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-  const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
   const previousMonth = () => setCurrentDate(new Date(year, month - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
 
-  const hoje = new Date();
-  const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
-
   const getCompromissosForDate = (dateString: string) =>
-    (state?.compromissos || []).filter((c: any) => c.data === dateString && !c.concluido);
+    state.compromissos.filter(c => c.data === dateString && !c.concluido);
 
   const getAnotacoesForDate = (dateString: string) =>
-    (state?.anotacoes || []).filter((a: any) => a.data === dateString);
+    state.anotacoes.filter(a => a.data === dateString);
 
   const renderCalendarWeeks = () => {
     const allDays: (number | null)[] = [];
@@ -44,15 +43,13 @@ export function Calendar({ onDayPress }: { onDayPress: (date: string) => void })
         {Array.from({ length: 7 }, (_, dayIndex) => {
           const day = allDays[weekIndex * 7 + dayIndex];
           if (day === null) return <View key={`empty-${weekIndex}-${dayIndex}`} style={styles.emptyDay} />;
-          
-          const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-          
+          const dateString = createDateString(year, month, day);
           return (
             <CalendarDay
               key={`day-${day}`}
               day={day}
               dateString={dateString}
-              isToday={dateString === hojeStr}
+              isToday={isToday(dateString)}
               compromissos={getCompromissosForDate(dateString)}
               anotacoes={getAnotacoesForDate(dateString)}
               onPress={onDayPress}
@@ -69,8 +66,8 @@ export function Calendar({ onDayPress }: { onDayPress: (date: string) => void })
         <TouchableOpacity onPress={previousMonth} style={styles.navButton}>
           <ChevronLeft size={24} color={colors.primary} />
         </TouchableOpacity>
-        <Text style={{ color: colors.text.primary, fontSize: 18, fontWeight: 'bold', textTransform: 'capitalize' }}>
-          {monthNames[month]} {year}
+        <Text style={[typography.sectionTitle, { color: colors.text.primary }]}>
+          {getMonthName(month)} {year}
         </Text>
         <TouchableOpacity onPress={nextMonth} style={styles.navButton}>
           <ChevronRight size={24} color={colors.primary} />
@@ -80,7 +77,7 @@ export function Calendar({ onDayPress }: { onDayPress: (date: string) => void })
       <View style={styles.weekDaysContainer}>
         {weekDays.map((day) => (
           <View key={day} style={styles.weekDayCell}>
-            <Text style={{ color: colors.text.secondary, fontSize: 13, fontWeight: '600' }}>{day}</Text>
+            <Text style={[typography.small, { color: colors.text.secondary }]}>{day}</Text>
           </View>
         ))}
       </View>
@@ -104,3 +101,5 @@ function makeStyles(colors: typeof lightColors) {
     emptyDay: { width: '14.285714%', flex: 1 },
   });
 }
+
+export { Calendar };

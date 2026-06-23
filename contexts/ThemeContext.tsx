@@ -50,3 +50,6 @@ export function useTheme() {
   if (!context) throw new Error('useTheme must be used within ThemeProvider');
   return context;
 }
+
+// 🛡️ O ESCUDO PROTETOR QUE ESTAVA FALTANDO:
+export default ThemeProvider;

@@ -7,18 +7,18 @@ const lightColors = {
   danger: '#EF4444',
   text: {
     primary: '#1E293B',
-    secondary: '#64748B',
+    secondary: '#737e8d',
     tertiary: '#94A3B8',
     white: '#FFFFFF',
   },
   background: {
     primary: '#FFFFFF',
-    secondary: '#F8FAFC',
-    tertiary: '#F1F5F9',
+    secondary: '#eeefef',
+    tertiary: '#e0e5e9',
     success: '#F0FDF4',
     warning: '#FFF7ED',
     danger: '#FFF1F1',
-    expired: '#FFF1F1',
+    expired: '#fee1e1',
   },
   border: {
     light: '#E2E8F0',
@@ -26,7 +26,7 @@ const lightColors = {
     dark: '#94A3B8',
   },
   category: {
-    aula: '#3B82F6',
+    aula: '#024abc',
     prova: '#EF4444',
     trabalho: '#F97316',
     outro: '#8B5CF6',
@@ -35,6 +35,10 @@ const lightColors = {
     primary: '#10B981',
     background: '#F8FAFC',
     border: '#E2E8F0',
+  },
+  // NOVA PROPRIEDADE ADICIONADA PARA O CALENDÁRIO NO MODO CLARO
+  calendar: {
+    todayBackground: '#458cff', 
   },
   shadow: {
     color: '#000',
@@ -79,7 +83,7 @@ const darkColors = {
     dark: '#64748B',
   },
   category: {
-    aula: '#60A5FA',
+    aula: '#024abc',
     prova: '#F87171',
     trabalho: '#FB923C',
     outro: '#A78BFA',
@@ -88,6 +92,10 @@ const darkColors = {
     primary: '#34D399',
     background: '#0F172A',
     border: '#334155',
+  },
+  // NOVA PROPRIEDADE ADICIONADA PARA O CALENDÁRIO NO MODO ESCURO
+  calendar: {
+    todayBackground: '#365fbf64',
   },
   shadow: {
     color: '#000',

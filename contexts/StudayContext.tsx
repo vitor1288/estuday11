@@ -31,8 +31,7 @@ export interface Compromisso {
   materiaId?: string;      
   concluido: boolean;
   notificationId?: string;
-  // CORRIGIDO: Nome idêntico ao backup (inglês) e tipo flexível para aceitar os dois formatos
-  notificationConfig?: any; 
+  notificacaoConfig?: { notifications: NotificationConfig[] }; 
 }
 
 export interface AnotacaoCalendario {
@@ -130,32 +129,28 @@ function reducer(state: EstudayState, action: EstudayAction): EstudayState {
 }
 
 export const NOTIFICATION_OPTIONS = [
-  { id: '1', tempo: 5, unidade: 'minutos', label: '5 minutos antes' },
-  { id: '2', tempo: 15, unidade: 'minutos', label: '15 minutos antes' },
-  { id: '3', tempo: 30, unidade: 'minutos', label: '30 minutos antes' },
-  { id: '4', tempo: 1, unidade: 'horas', label: '1 hora antes' },
-  { id: '5', tempo: 1, unidade: 'dias', label: '1 dia antes' },
+  { label: 'Sem notificação', tempo: 0, unidade: 'minutos' as const, enabled: false },
+  { label: '15 minutos antes', tempo: 15, unidade: 'minutos' as const, enabled: true },
+  { label: '30 minutos antes', tempo: 30, unidade: 'minutos' as const, enabled: true },
+  { label: '1 hora antes', tempo: 1, unidade: 'horas' as const, enabled: true },
+  { label: '2 horas antes', tempo: 2, unidade: 'horas' as const, enabled: true },
+  { label: '3 horas antes', tempo: 3, unidade: 'horas' as const, enabled: true },
+  { label: '6 horas antes', tempo: 6, unidade: 'horas' as const, enabled: true },
+  { label: '12 horas antes', tempo: 12, unidade: 'horas' as const, enabled: true },
+  { label: '1 dia antes', tempo: 1, unidade: 'dias' as const, enabled: true },
+  { label: '2 dias antes', tempo: 2, unidade: 'dias' as const, enabled: true },
+  { label: '3 dias antes', tempo: 3, unidade: 'dias' as const, enabled: true },
+  { label: '1 semana antes', tempo: 7, unidade: 'dias' as const, enabled: true },
 ];
 
-// FUNÇÃO INTELIGENTE/HÍBRIDA: Lê tanto o formato de objeto único do backup quanto o formato de array do selector
-export const getNotificationText = (config?: any): string => {
-  if (!config) return 'Sem notificação';
-  
-  // Se for o formato do NotificationSelector (Objeto com array de notificações)
-  if (config.notifications && Array.isArray(config.notifications)) {
-    const enabled = config.notifications.filter((n: any) => n.enabled);
-    if (!enabled.length) return 'Sem notificação';
-    if (enabled.length === 1) return getNotificationText(enabled[0]);
-    return `${enabled.length} lembretes`;
-  }
-
-  // Se for o formato simples/antigo (Objeto direto de configuração)
-  if (!config.enabled) return 'Sem notificação';
+export const getNotificationText = (config?: NotificationConfig): string => {
+  if (!config || !config.enabled) return 'Sem notificação';
   const item = NOTIFICATION_OPTIONS.find(o => o.tempo === config.tempo && o.unidade === config.unidade);
   if (item) return item.label;
   return `${config.tempo} ${config.unidade} antes`;
 };
 
+// EXPORTAÇÃO DO CONTEXT (Protegido com os dois nomes)
 export const EstudayContext = createContext<any>(null);
 export const StudayContext = EstudayContext;
 
@@ -253,6 +248,7 @@ export function EstudayProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+// OS "ESCUDOS": Garante que não importa como o _layout.tsx chama o ficheiro, ele vai encontrar
 export const StudayProvider = EstudayProvider;
 export default EstudayProvider;
 
