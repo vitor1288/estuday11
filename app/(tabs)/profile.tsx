@@ -1,15 +1,19 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, TextInput, Image, Modal, SafeAreaView as RNSafeAreaView,
+  Alert, TextInput, Image, Modal, SafeAreaView as RNSafeAreaView, Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   User, BookOpen, Info, Trash2, ChartBar as BarChart3,
   Camera, Edit3, Check, X, Settings, ChevronRight, Sun, Moon, Smartphone,
+  FileText, Copy, Download, CheckSquare, Square,
 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
+import * as Clipboard from 'expo-clipboard';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { useEstuday } from '@/contexts/StudayContext';
 import { useTheme, ThemePreference } from '@/contexts/ThemeContext';
 import { lightColors, darkColors } from '@/components/theme/colors';
@@ -23,6 +27,19 @@ export default function ProfileScreen() {
   const [tempName, setTempName] = useState(state.userProfile.nome);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [themeModalVisible, setThemeModalVisible] = useState(false);
+  
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
+  
+  // NOVO: Estado para controlar quais campos vão ser exportados
+  const [exportConfig, setExportConfig] = useState({
+    data: true,
+    horario: true,
+    titulo: true,
+    categoria: true,
+    materia: true,
+    descricao: true,
+  });
 
   // ─── Limpar dados ────────────────────────────────────────────────────────────
   const handleClearData = () => {
@@ -108,10 +125,144 @@ export default function ProfileScreen() {
     { key: 'dark', label: 'Escuro', icon: <Moon size={20} color={colors.primary} /> },
     { key: 'system', label: 'Sistema', icon: <Smartphone size={20} color={colors.primary} /> },
   ];
-
   const currentThemeLabel = themeOptions.find(t => t.key === preference)?.label ?? 'Sistema';
 
-  // ─── Stats ─────────────────────────────────────────────────────────────────
+  // ─── Funções de Lógica do Relatório ─────────────────────────────
+  const handleOpenReport = () => {
+    setSelectedReportIds(state.compromissos.map(c => c.id));
+    setReportModalVisible(true);
+  };
+
+  const toggleSelectAllReport = () => {
+    if (selectedReportIds.length === state.compromissos.length) {
+      setSelectedReportIds([]);
+    } else {
+      setSelectedReportIds(state.compromissos.map(c => c.id));
+    }
+  };
+
+  const toggleReportItem = (id: string) => {
+    if (selectedReportIds.includes(id)) {
+      setSelectedReportIds(selectedReportIds.filter(item => item !== id));
+    } else {
+      setSelectedReportIds([...selectedReportIds, id]);
+    }
+  };
+
+  const toggleConfig = (key: keyof typeof exportConfig) => {
+    setExportConfig(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+const construirTextoRelatorio = () => {
+    const selecionados = state.compromissos.filter(c => selectedReportIds.includes(c.id));
+    if (selecionados.length === 0) return '';
+
+    let texto = '';
+    selecionados.forEach(c => {
+      
+      if (exportConfig.data) {
+        let dataFormatada = 'Sem data';
+        if (c.data && c.data.includes('-')) {
+          const partes = c.data.split('-');
+          if (partes.length === 3) {
+            dataFormatada = `${partes[2]}/${partes[1]}/${partes[0]}`;
+          } else {
+            dataFormatada = c.data;
+          }
+        } else if (c.data) {
+          dataFormatada = c.data;
+        }
+        texto += `${dataFormatada}\n`;
+      }
+
+      if (exportConfig.horario) {
+        texto += `${c.hora || 'Sem horário'}\n`;
+      }
+
+      if (exportConfig.titulo) {
+        texto += `${c.titulo || 'Sem título'}\n`;
+      }
+
+      if (exportConfig.categoria) {
+        texto += `Categoria: ${c.categoriaNome || c.categoria || 'Geral'}\n`;
+      }
+
+      if (exportConfig.materia) {
+        texto += `matéria: ${c.materiaNome || c.materia || 'Geral'}\n`;
+      }
+
+      // Alterado: Remove completamente a linha se não houver descrição ou se for "Sem descrição"
+      if (exportConfig.descricao) {
+        const descricaoOriginal = c.descricao ? c.descricao.trim() : '';
+        const temDescricaoValida = descricaoOriginal && descricaoOriginal.toLowerCase() !== 'sem descrição';
+        
+        if (temDescricaoValida) {
+          texto += `Descrição: ${descricaoOriginal}\n`;
+        }
+      }
+
+      texto +='__________ \n';
+    });
+
+    return texto.trim();
+  };
+
+  const handleCopiarRelatorio = async () => {
+    const texto = construirTextoRelatorio();
+    if (!texto) { Alert.alert('Aviso', 'Selecione ao menos um compromisso.'); return; }
+    await Clipboard.setStringAsync(texto);
+    Alert.alert('Copiado! ', 'O relatório formatado foi copiado com sucesso.');
+  };
+
+  const handleBaixarRelatorio = async () => {
+    const texto = construirTextoRelatorio();
+    if (!texto) { Alert.alert('Aviso', 'Selecione ao menos um compromisso.'); return; }
+
+    try {
+      // Cria a data atual para o nome do arquivo
+      const now = new Date();
+      const dia = String(now.getDate()).padStart(2, '0');
+      const mes = String(now.getMonth() + 1).padStart(2, '0');
+      const ano = now.getFullYear();
+      const hora = String(now.getHours()).padStart(2, '0');
+      const min = String(now.getMinutes()).padStart(2, '0');
+
+      // Formato substituindo barras por hífens para o sistema operacional aceitar o arquivo
+      const filename = `Estuday-Relatório ${dia}-${mes}-${ano} ${hora}h${min}.txt`;
+
+      if (Platform.OS === 'web') {
+        const blob = new Blob([texto], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } else {
+        const fileUri = FileSystem.cacheDirectory + filename;
+        await FileSystem.writeAsStringAsync(fileUri, texto, { encoding: FileSystem.EncodingType.UTF8 });
+
+        const disponivel = await Sharing.isAvailableAsync();
+        if (disponivel) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: 'text/plain',
+            dialogTitle: 'Salvar Relatório',
+            UTI: 'public.plain-text',
+          });
+        } else {
+          await Clipboard.setStringAsync(texto);
+          Alert.alert('Download indisponível', 'O relatório foi copiado para a Área de Transferência!');
+        }
+      }
+    } catch (error) {
+      console.log(error);
+      await Clipboard.setStringAsync(texto);
+      Alert.alert('Aviso', 'Não foi possível baixar o arquivo.');
+    }
+  };
+
   const stats = {
     totalCompromissos: state.compromissos.length,
     compromissosConcluidos: state.compromissos.filter(c => c.concluido).length,
@@ -185,8 +336,6 @@ export default function ProfileScreen() {
         {/* ── Configurações ── */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>Configurações</Text>
-
-          {/* Botão que abre o modal de configurações */}
           <TouchableOpacity style={s.settingsCard} onPress={() => setSettingsVisible(true)}>
             <View style={s.settingsRow}>
               <Settings size={20} color={colors.primary} />
@@ -195,7 +344,14 @@ export default function ProfileScreen() {
             <ChevronRight size={18} color={colors.text.tertiary} />
           </TouchableOpacity>
 
-          {/* Limpar dados */}
+          <TouchableOpacity style={s.settingsCard} onPress={handleOpenReport}>
+            <View style={s.settingsRow}>
+              <FileText size={20} color={colors.primary} />
+              <Text style={s.settingsLabel}>Gerar Relatório de Compromissos</Text>
+            </View>
+            <ChevronRight size={18} color={colors.text.tertiary} />
+          </TouchableOpacity>
+
           <TouchableOpacity style={s.dangerCard} onPress={handleClearData}>
             <Trash2 size={20} color={colors.danger} />
             <View style={{ flex: 1 }}>
@@ -205,34 +361,9 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── Sobre ── */}
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>Sobre o Estuday</Text>
-          <View style={s.infoCard}>
-            <Info size={20} color={colors.primary} />
-            <View style={{ flex: 1 }}>
-              <Text style={s.infoTitle}>Versão do App</Text>
-              <Text style={s.infoText}>1.0.0</Text>
-            </View>
-          </View>
-          <View style={s.infoCard}>
-            <BookOpen size={20} color={colors.success} />
-            <View style={{ flex: 1 }}>
-              <Text style={s.infoTitle}>Sobre o Estuday</Text>
-              <Text style={s.infoText}>
-                O Estuday é seu companheiro de estudos, ajudando você a organizar compromissos,
-                fazer anotações e manter o foco nos seus objetivos acadêmicos.
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={s.footer}>
-          <Text style={s.footerText}>Desenvolvido especialmente para estudantes</Text>
-        </View>
       </ScrollView>
 
-      {/* ── Modal: Configurações ── */}
+      {/* ── MODAL: Configurações de Tema ── */}
       <Modal visible={settingsVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setSettingsVisible(false)}>
         <RNSafeAreaView style={[s.modalContainer, { backgroundColor: colors.background.secondary }]}>
           <View style={[s.modalHeader, { backgroundColor: colors.background.primary, borderBottomColor: colors.border.light }]}>
@@ -242,13 +373,8 @@ export default function ProfileScreen() {
             <Text style={[s.modalTitle, { color: colors.text.primary }]}>Configurações</Text>
             <View style={{ width: 32 }} />
           </View>
-
           <ScrollView style={{ flex: 1, padding: 20 }}>
-            {/* Opção: Tema */}
-            <TouchableOpacity
-              style={[s.settingsOptionCard, { backgroundColor: colors.background.primary, borderColor: colors.border.light }]}
-              onPress={() => setThemeModalVisible(true)}
-            >
+            <TouchableOpacity style={[s.settingsOptionCard, { backgroundColor: colors.background.primary, borderColor: colors.border.light }]} onPress={() => setThemeModalVisible(true)}>
               <View style={s.settingsRow}>
                 <Sun size={20} color={colors.primary} />
                 <View style={{ flex: 1, marginLeft: 12 }}>
@@ -262,27 +388,20 @@ export default function ProfileScreen() {
         </RNSafeAreaView>
       </Modal>
 
-      {/* ── Modal: Escolha de Tema ── */}
       <Modal visible={themeModalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setThemeModalVisible(false)}>
         <RNSafeAreaView style={[s.modalContainer, { backgroundColor: colors.background.secondary }]}>
           <View style={[s.modalHeader, { backgroundColor: colors.background.primary, borderBottomColor: colors.border.light }]}>
-            <TouchableOpacity onPress={() => setThemeModalVisible(false)} style={{ padding: 4 }}>
-              <X size={24} color={colors.text.secondary} />
-            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setThemeModalVisible(false)} style={{ padding: 4 }}><X size={24} color={colors.text.secondary} /></TouchableOpacity>
             <Text style={[s.modalTitle, { color: colors.text.primary }]}>Tema</Text>
             <View style={{ width: 32 }} />
           </View>
-
           <View style={{ padding: 20, gap: 12 }}>
             {themeOptions.map((option) => {
               const selected = preference === option.key;
               return (
                 <TouchableOpacity
                   key={option.key}
-                  style={[
-                    s.themeOption,
-                    { backgroundColor: colors.background.primary, borderColor: selected ? colors.primary : colors.border.light },
-                  ]}
+                  style={[s.themeOption, { backgroundColor: colors.background.primary, borderColor: selected ? colors.primary : colors.border.light }]}
                   onPress={async () => { await setTheme(option.key); setThemeModalVisible(false); }}
                 >
                   <View style={s.settingsRow}>
@@ -293,12 +412,94 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
               );
             })}
-            <Text style={[s.themeHint, { color: colors.text.tertiary }]}>
-              "Sistema" usa automaticamente o tema do seu celular.
-            </Text>
           </View>
         </RNSafeAreaView>
       </Modal>
+
+      {/* ── MODAL: Gerar Relatório ── */}
+      <Modal visible={reportModalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setReportModalVisible(false)}>
+        <RNSafeAreaView style={[s.modalContainer, { backgroundColor: colors.background.secondary }]}>
+          <View style={[s.modalHeader, { backgroundColor: colors.background.primary, borderBottomColor: colors.border.light }]}>
+            <TouchableOpacity onPress={() => setReportModalVisible(false)} style={{ padding: 4 }}>
+              <X size={24} color={colors.text.secondary} />
+            </TouchableOpacity>
+            <Text style={[s.modalTitle, { color: colors.text.primary }]}>Exportar Relatório</Text>
+            <View style={{ width: 32 }} />
+          </View>
+
+          <View style={{ flex: 1, padding: 20 }}>
+            
+            {/* Opções de quais informações exportar */}
+            <Text style={[s.sectionTitle, { fontSize: 16, marginBottom: 8, color: colors.text.primary }]}>Informações para incluir:</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.configScroll}>
+              {Object.entries(exportConfig).map(([key, isEnabled]) => (
+                <TouchableOpacity
+                  key={key}
+                  style={[s.configBadge, { backgroundColor: isEnabled ? colors.primary : colors.background.tertiary }]}
+                  onPress={() => toggleConfig(key as keyof typeof exportConfig)}
+                >
+                  <Text style={{ color: isEnabled ? '#fff' : colors.text.secondary, fontWeight: '600' }}>
+                    {key.charAt(0).toUpperCase() + key.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {/* Linha Selecionar Tudo */}
+            {state.compromissos.length > 0 && (
+              <TouchableOpacity style={[s.selectAllRow, { backgroundColor: colors.background.primary, borderColor: colors.border.light }]} onPress={toggleSelectAllReport}>
+                {selectedReportIds.length === state.compromissos.length ? <CheckSquare size={20} color={colors.primary} /> : <Square size={20} color={colors.text.secondary} />}
+                <Text style={[s.selectAllText, { color: colors.text.primary }]}>
+                  {selectedReportIds.length === state.compromissos.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Lista de Compromissos */}
+            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+              {state.compromissos.length === 0 ? (
+                <Text style={{ color: colors.text.tertiary, textAlign: 'center', marginTop: 40, fontSize: 15 }}>
+                  Nenhum compromisso agendado.
+                </Text>
+              ) : (
+                state.compromissos.map((item) => {
+                  const isSelected = selectedReportIds.includes(item.id);
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={[s.reportItemCard, { backgroundColor: colors.background.primary, borderColor: isSelected ? colors.primary : colors.border.light }]}
+                      onPress={() => toggleReportItem(item.id)}
+                    >
+                      <View style={s.reportItemRow}>
+                        {isSelected ? <CheckSquare size={20} color={colors.primary} /> : <Square size={20} color={colors.text.secondary} />}
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                          <Text style={[s.reportItemTitle, { color: colors.text.primary }]} numberOfLines={1}>{item.titulo || 'Sem título'}</Text>
+                          <Text style={[s.reportItemSub, { color: colors.text.secondary }]}>{item.data || ''} {item.hora ? `às ${item.hora}` : ''}</Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </ScrollView>
+
+            {selectedReportIds.length > 0 && (
+              <View style={s.footerButtons}>
+                <TouchableOpacity style={[s.btnReportCopy, { backgroundColor: colors.background.primary, borderColor: colors.border.light }]} onPress={handleCopiarRelatorio}>
+                  <Copy size={18} color={colors.text.primary} style={{ marginRight: 6 }} />
+                  <Text style={[s.btnTextPrimary, { color: colors.text.primary }]}>Copiar Texto</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={[s.btnReportDownload, { backgroundColor: colors.primary }]} onPress={handleBaixarRelatorio}>
+                  <Download size={18} color="#fff" style={{ marginRight: 6 }} />
+                  <Text style={s.btnTextWhite}>Baixar .TXT</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </RNSafeAreaView>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -334,11 +535,6 @@ function makeStyles(colors: typeof lightColors) {
     dangerCard: { flexDirection: 'row', backgroundColor: colors.background.danger, padding: 16, borderRadius: 12, alignItems: 'flex-start', gap: 12, borderWidth: 1, borderColor: colors.danger + '40' },
     dangerTitle: { fontSize: 16, fontWeight: '600', color: colors.danger, marginBottom: 4 },
     dangerText: { fontSize: 14, color: colors.text.secondary, lineHeight: 20 },
-    infoCard: { flexDirection: 'row', backgroundColor: colors.background.primary, padding: 16, borderRadius: 12, marginBottom: 12, alignItems: 'flex-start', gap: 12 },
-    infoTitle: { fontSize: 16, fontWeight: '600', color: colors.text.primary, marginBottom: 4 },
-    infoText: { fontSize: 14, color: colors.text.secondary, lineHeight: 20 },
-    footer: { alignItems: 'center', paddingVertical: 32 },
-    footerText: { fontSize: 14, color: colors.text.tertiary, textAlign: 'center' },
     modalContainer: { flex: 1 },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1 },
     modalTitle: { fontSize: 18, fontWeight: '600' },
@@ -347,6 +543,20 @@ function makeStyles(colors: typeof lightColors) {
     settingsOptionSub: { fontSize: 13, marginTop: 2 },
     themeOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderRadius: 12, borderWidth: 2 },
     themeOptionLabel: { fontSize: 16, fontWeight: '500' },
-    themeHint: { fontSize: 13, textAlign: 'center', marginTop: 8 },
+    
+    configScroll: { marginBottom: 16, maxHeight: 40 },
+    configBadge: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, marginRight: 8, justifyContent: 'center', alignItems: 'center' },
+    
+    selectAllRow: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 12, borderWidth: 1, marginBottom: 12 },
+    selectAllText: { marginLeft: 12, fontWeight: '600', fontSize: 16 },
+    reportItemCard: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 12, borderWidth: 1, marginBottom: 8 },
+    reportItemRow: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+    reportItemTitle: { fontSize: 15, fontWeight: '600' },
+    reportItemSub: { fontSize: 13, marginTop: 2 },
+    footerButtons: { flexDirection: 'row', gap: 12, marginTop: 16, paddingBottom: 10 },
+    btnReportCopy: { flex: 1, height: 48, borderRadius: 10, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
+    btnReportDownload: { flex: 1, height: 48, borderRadius: 10, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+    btnTextWhite: { color: '#fff', fontWeight: '600', fontSize: 15 },
+    btnTextPrimary: { fontWeight: '600', fontSize: 15 },
   });
 }
