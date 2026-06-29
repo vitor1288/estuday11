@@ -153,12 +153,12 @@ export default function ProfileScreen() {
     setExportConfig(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-const construirTextoRelatorio = () => {
-    const selecionados = state.compromissos.filter(c => selectedReportIds.includes(c.id));
-    if (selecionados.length === 0) return '';
+  const construirTextoRelatorio = () => {
+    const widgets = state.compromissos.filter(c => selectedReportIds.includes(c.id));
+    if (widgets.length === 0) return '';
 
     let texto = '';
-    selecionados.forEach(c => {
+    widgets.forEach(c => {
       
       if (exportConfig.data) {
         let dataFormatada = 'Sem data';
@@ -191,7 +191,6 @@ const construirTextoRelatorio = () => {
         texto += `matéria: ${c.materiaNome || c.materia || 'Geral'}\n`;
       }
 
-      // Alterado: Remove completamente a linha se não houver descrição ou se for "Sem descrição"
       if (exportConfig.descricao) {
         const descricaoOriginal = c.descricao ? c.descricao.trim() : '';
         const temDescricaoValida = descricaoOriginal && descricaoOriginal.toLowerCase() !== 'sem descrição';
@@ -219,7 +218,6 @@ const construirTextoRelatorio = () => {
     if (!texto) { Alert.alert('Aviso', 'Selecione ao menos um compromisso.'); return; }
 
     try {
-      // Cria a data atual para o nome do arquivo
       const now = new Date();
       const dia = String(now.getDate()).padStart(2, '0');
       const mes = String(now.getMonth() + 1).padStart(2, '0');
@@ -227,7 +225,6 @@ const construirTextoRelatorio = () => {
       const hora = String(now.getHours()).padStart(2, '0');
       const min = String(now.getMinutes()).padStart(2, '0');
 
-      // Formato substituindo barras por hífens para o sistema operacional aceitar o arquivo
       const filename = `Estuday-Relatório ${dia}-${mes}-${ano} ${hora}h${min}.txt`;
 
       if (Platform.OS === 'web') {
@@ -359,6 +356,32 @@ const construirTextoRelatorio = () => {
               <Text style={s.dangerText}>Remove todos os compromissos e anotações. Não pode ser desfeito.</Text>
             </View>
           </TouchableOpacity>
+        </View>
+
+        {/* ── 🚀 ADICIONADO: Sobre o Estuday ── */}
+        <View style={s.aboutSection}>
+          <Text style={s.aboutSectionTitle}>Sobre o Estuday</Text>
+          <View style={s.aboutCard}>
+            <Info size={20} color={colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={s.aboutCardTitle}>Versão do App</Text>
+              <Text style={s.aboutCardText}>1.0.0</Text>
+            </View>
+          </View>
+          <View style={s.aboutCard}>
+            <BookOpen size={20} color={colors.success} />
+            <View style={{ flex: 1 }}>
+              <Text style={s.aboutCardTitle}>Sobre o Estuday</Text>
+              <Text style={s.aboutCardText}>
+                O Estuday é o seu companheiro de estudos, ajudando-o a organizar compromissos,
+                fazer anotações e manter o foco nos seus objetivos académicos.
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={s.aboutFooter}>
+          <Text style={s.aboutFooterText}>Desenvolvido especialmente para estudantes</Text>
         </View>
 
       </ScrollView>
@@ -558,5 +581,14 @@ function makeStyles(colors: typeof lightColors) {
     btnReportDownload: { flex: 1, height: 48, borderRadius: 10, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
     btnTextWhite: { color: '#fff', fontWeight: '600', fontSize: 15 },
     btnTextPrimary: { fontWeight: '600', fontSize: 15 },
+
+    // Estilos da secção "Sobre" adicionados:
+    aboutSection: { paddingHorizontal: 20, marginTop: 16, marginBottom: 12 },
+    aboutSectionTitle: { fontSize: 16, fontWeight: '700', color: colors.text.primary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
+    aboutCard: { flexDirection: 'row', backgroundColor: colors.background.primary, padding: 16, borderRadius: 12, marginBottom: 12, alignItems: 'flex-start', gap: 12, borderWidth: 1, borderColor: colors.border.light },
+    aboutCardTitle: { fontSize: 15, fontWeight: '600', color: colors.text.primary, marginBottom: 4 },
+    aboutCardText: { fontSize: 13, color: colors.text.secondary, lineHeight: 18 },
+    aboutFooter: { alignItems: 'center', paddingVertical: 20, marginBottom: 10 },
+    aboutFooterText: { fontSize: 13, color: colors.text.tertiary, textAlign: 'center' },
   });
 }

@@ -56,7 +56,6 @@ export default function HomeScreen() {
               )}
             </TouchableOpacity>
             <View style={styles.greetingContainer}>
-              {/* ✨ Chamando a saudação blindada e segura */}
               <Text style={[typography.body, { color: colors.text.secondary }]}>
                 {obterSaudacao(userProfile?.nome)}
               </Text>
@@ -103,27 +102,27 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-         {proximosCompromissos.length === 0 ? (
-  <View style={styles.emptyState}>
-    <Text style={[typography.body, { color: colors.text.tertiary, marginBottom: 12 }]}>
-      Nenhum compromisso agendado
-    </Text>
-    <BaseButton 
-      title="Criar Compromisso" 
-      onPress={() => router.push('/calendar')} 
-      variant="outline" 
-      size="small"
-    >
-      <Plus size={16} color={colors.primary} />
-    </BaseButton>
-  </View>
-) : (
-  proximosCompromissos.map((item) => (
-    <TouchableOpacity key={item.id} style={styles.compromissoItem} onPress={() => router.push('/calendar')}>
-      <View style={styles.compromissoContent}>
-        <Text style={[typography.body, { color: colors.text.primary, fontWeight: '600' }]} numberOfLines={1}>
-          {item.titulo}
-        </Text>
+          {proximosCompromissos.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={[typography.body, { color: colors.text.tertiary, marginBottom: 12 }]}>
+                Nenhum compromisso agendado
+              </Text>
+              <BaseButton 
+                title="Criar Compromisso" 
+                onPress={() => router.push('/calendar')} 
+                variant="outline" 
+                size="small"
+              >
+                <Plus size={16} color={colors.primary} />
+              </BaseButton>
+            </View>
+          ) : (
+            proximosCompromissos.map((item) => (
+              <TouchableOpacity key={item.id} style={styles.compromissoItem} onPress={() => router.push('/calendar')}>
+                <View style={styles.compromissoContent}>
+                  <Text style={[typography.body, { color: colors.text.primary, fontWeight: '600' }]} numberOfLines={1}>
+                    {item.titulo}
+                  </Text>
                   <Text style={[typography.caption, { color: colors.text.secondary }]}>
                     {new Date(item.data + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} às {item.hora}
                   </Text>
@@ -133,6 +132,35 @@ export default function HomeScreen() {
             ))
           )}
         </View>
+
+        {/* 🗺️ ADICIONADO: Atalhos para Telas (Reposicionado após Compromissos) */}
+        <View style={styles.section}>
+          <Text style={[typography.h3, { color: colors.text.primary, fontWeight: '600', marginBottom: 16 }]}>
+            Atalhos para Telas
+          </Text>
+          <View style={styles.quickActionsGrid}>
+            <TouchableOpacity style={styles.quickActionItem} onPress={() => router.push('/calendar')}>
+              <Calendar size={22} color={colors.primary} />
+              <Text style={[typography.caption, { color: colors.text.primary, fontWeight: '600' }]}>Calendário</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.quickActionItem} onPress={() => router.push('/compromissos')}>
+              <Clock size={22} color={colors.success} />
+              <Text style={[typography.caption, { color: colors.text.primary, fontWeight: '600' }]}>Compromissos</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.quickActionItem} onPress={() => router.push('/anotacoes')}>
+              <BookOpen size={22} color={colors.warning} />
+              <Text style={[typography.caption, { color: colors.text.primary, fontWeight: '600' }]}>Anotações</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.quickActionItem} onPress={() => router.push('/profile')}>
+              <User size={22} color={colors.info} />
+              <Text style={[typography.caption, { color: colors.text.primary, fontWeight: '600' }]}>Perfil</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -156,5 +184,9 @@ function makeStyles(colors: typeof lightColors) {
     compromissoContent: { flex: 1 },
     categoriaIndicator: { width: 4, height: 40, borderRadius: 2, marginLeft: 12 },
     emptyState: { alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: colors.background.primary, borderRadius: 12, borderWidth: 1, borderColor: colors.border.light, borderStyle: 'dashed' },
+    
+    // Configurações visuais dos Atalhos em formato de grade
+    quickActionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+    quickActionItem: { flex: 1, minWidth: '45%', backgroundColor: colors.background.primary, padding: 16, borderRadius: 12, alignItems: 'center', gap: 8, borderWidth: 1, borderColor: colors.border.light },
   });
 }
