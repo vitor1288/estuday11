@@ -7,7 +7,8 @@ import { ManageDataModal } from '@/components/ManageDataModal';
 import { CompromissoModal } from '@/components/CompromissoModal/CompromissoModal'; 
 import { filtrarEOrdenarCompromissos, OrderOption, OrderDirection } from '@/utils/filterUtils';
 import { lightColors } from '@/components/theme/colors';
-import { Settings, Calendar as CalendarIcon, Clock, Plus, Filter, Search, X, Check, ArrowDownUp } from 'lucide-react-native';
+// 🟢 ADICIONADO: Importados Circle e CheckCircle para a bolinha de conclusão
+import { Settings, Calendar as CalendarIcon, Clock, Plus, Filter, Search, X, Check, ArrowDownUp, Circle, CheckCircle } from 'lucide-react-native';
 
 type StatusTab = 'todos' | 'pendente' | 'realizar' | 'hoje' | 'concluido';
 
@@ -37,6 +38,8 @@ export default function CompromissosScreen() {
   const [modalCriarVisivel, setModalCriarVisivel] = useState(false); 
   const [modalFiltroVisivel, setModalFiltroVisivel] = useState(false);
   const [modalOrdenacaoVisivel, setModalOrdenacaoVisivel] = useState(false);
+  // 🟢 CORREÇÃO 4: Estado criado para armazenar o compromisso que vai ser editado
+  const [compromissoEdicao, setCompromissoEdicao] = useState<any | null>(null);
 
   // Função utilitária para checar atrasos
   const verificarAtrasado = (item: any) => {
@@ -224,32 +227,57 @@ export default function CompromissosScreen() {
           else if (atrasado) statusCard = 'expired';
 
           return (
-            <BaseCard variant="compromisso" status={statusCard} sideBarColor={corCard} onPress={() => toggleCompromisso(item.id)}>
-              <View style={styles.cardHeader}>
-                <View style={styles.titleColumn}>
-                  <Text style={[typography.cardTitle, styles.cardTitle, item.concluido && styles.textConcluido]}>{item.titulo}</Text>
-                  {item.materiaId ? <Text style={[typography.small, styles.materiaText]}>📚 {getMateriaNome(item.materiaId)}</Text> : null}
-                </View>
-                <View style={[styles.badge, { backgroundColor: corCard + '15' }]}>
-                  <Text style={[styles.badgeText, { color: corCard }]}>{categoriaObj ? categoriaObj.nome : 'Outro'}</Text>
-                </View>
-              </View>
+            // 🟢 CORREÇÃO 1 & 4: Definimos onPress como undefined para o card de fora não roubar o clique geral
+            <BaseCard variant="compromisso" status={statusCard} sideBarColor={corCard} onPress={undefined} showShadow={true}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                
+                {/* 🟢 CORREÇÃO 1: Bolinha interativa isolada apenas para concluir o item */}
+                <TouchableOpacity 
+                  onPress={() => toggleCompromisso(item.id)}
+                  style={{ marginRight: 12, paddingVertical: 8, paddingHorizontal: 4 }}
+                  activeOpacity={0.7}
+                >
+                  {item.concluido ? (
+                    <CheckCircle size={22} color={colors.success} />
+                  ) : (
+                    <Circle size={22} color={atrasado ? colors.danger : colors.text.tertiary} />
+                  )}
+                </TouchableOpacity>
 
-              {item.descricao ? <Text style={[typography.body, styles.descricaoText]} numberOfLines={2}>{item.descricao}</Text> : null}
-
-              <View style={styles.cardFooter}>
-                <View style={styles.infoRow}>
-                  <CalendarIcon size={14} color={colors.text.secondary} />
-                  <Text style={[typography.caption, styles.infoText]}>{formatarData(item.data)}</Text>
-                </View>
-                {item.hora ? (
-                  <View style={styles.infoRow}>
-                    <Clock size={14} color={colors.text.secondary} />
-                    <Text style={[typography.caption, styles.infoText]}>{item.hora}</Text>
+                {/* 🟢 CORREÇÃO 4: Todo o corpo restante agora abre o modal de edição ao ser clicado */}
+                <TouchableOpacity 
+                  style={{ flex: 1 }}
+                  activeOpacity={0.8}
+                  onPress={() => setCompromissoEdicao(item)}
+                >
+                  <View style={styles.cardHeader}>
+                    <View style={styles.titleColumn}>
+                      <Text style={[typography.cardTitle, styles.cardTitle, item.concluido && styles.textConcluido]}>{item.titulo}</Text>
+                      {item.materiaId ? <Text style={[typography.small, styles.materiaText]}>📚 {getMateriaNome(item.materiaId)}</Text> : null}
+                    </View>
+                    <View style={[styles.badge, { backgroundColor: corCard + '15' }]}>
+                      <Text style={[styles.badgeText, { color: corCard }]}>{categoriaObj ? categoriaObj.nome : 'Outro'}</Text>
+                    </View>
                   </View>
-                ) : null}
 
-                {atrasado && <View style={styles.atrasadoBadge}><Text style={styles.atrasadoBadgeText}>ATRASADO</Text></View>}
+                  {item.descricao ? <Text style={[typography.body, styles.descricaoText]} numberOfLines={2}>{item.descricao}</Text> : null}
+
+                  <View style={styles.cardFooter}>
+                    <View style={styles.infoRow}>
+                      <CalendarIcon size={14} color={colors.text.secondary} />
+                      <Text style={[typography.caption, styles.infoText]}>{formatarData(item.data)}</Text>
+                    </View>
+                    {item.hora ? (
+                      <View style={styles.infoRow}>
+                        <Clock size={14} color={colors.text.secondary} />
+                        <Text style={[typography.caption, styles.infoText]}>{item.hora}</Text>
+                      </View>
+                    ) : null}
+
+                    {atrasado && <View style={styles.atrasadoBadge}><Text style={styles.atrasadoBadgeText}>ATRASADO</Text></View>}
+                  </View>
+                </TouchableOpacity>
+
               </View>
             </BaseCard>
           );
@@ -354,7 +382,20 @@ export default function CompromissosScreen() {
       </Modal>
 
       <ManageDataModal visible={modalGerenciarVisivel} onClose={() => setModalGerenciarVisivel(false)} />
-      <CompromissoModal visible={modalCriarVisivel} onClose={() => setModalCriarVisivel(false)} onSave={() => setModalCriarVisivel(false)} />
+      
+      {/* 🟢 CORREÇÃO 4: Modal configurado para abrir tanto ao criar quanto ao passar um compromisso para edição */}
+      <CompromissoModal 
+        visible={modalCriarVisivel || !!compromissoEdicao} 
+        compromisso={compromissoEdicao}
+        onClose={() => {
+          setModalCriarVisivel(false);
+          setCompromissoEdicao(null);
+        }} 
+        onSave={() => {
+          setModalCriarVisivel(false);
+          setCompromissoEdicao(null);
+        }} 
+      />
     </View>
   );
 }
@@ -426,12 +467,11 @@ function makeStyles(colors: typeof lightColors) {
     btnAplicarFiltros: { backgroundColor: colors.primary, paddingVertical: 14, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
     btnAplicarFiltrosText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
 
-    // ESTILOS DA MODAL DE ORDENAÇÃO COMPACTA
     modalOverlayCenter: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.4)', justifyContent: 'center', alignItems: 'center', padding: 20 },
     sortModalContainer: { 
       backgroundColor: colors.background.primary, 
       borderRadius: 16, 
-      width: 260, // <-- Tamanho fixo para ficar compacto como no seu desenho
+      width: 260, 
       padding: 16, 
       shadowColor: '#000', 
       shadowOffset: { width: 0, height: 4 }, 

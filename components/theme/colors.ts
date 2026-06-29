@@ -75,7 +75,7 @@ const darkColors = {
     success: '#052e16',
     warning: '#1c1008',
     danger: '#1f0a0a',
-    expired: '#531818',
+    expired: '#7a2f2f76',
   },
   border: {
     light: '#334155',

@@ -46,99 +46,110 @@ export function CompromissoCard({
   const isCompromissoExpired = !compromisso.concluido && isExpired(compromisso.data, compromisso.hora);
   const notificationsEnabled = compromisso.notificacaoConfig?.notifications?.some(n => n.enabled);
 
-  return (
+ return (
     <BaseCard
       variant={variant}
       status={compromisso.concluido ? 'completed' : (isCompromissoExpired ? 'expired' : 'normal')}
-      onPress={onPress}
-      sideBarColor={corCategoria} // Aplica a cor da categoria na barra lateral!
+      sideBarColor={corCategoria}
+      // 🟢 Passamos undefined para o BaseCard não criar o Touchable global por fora e não "roubar" os cliques
+      onPress={undefined} 
+      showShadow={true}
     >
-      <View style={styles.header}>
-        <TouchableOpacity 
-          onPress={onToggleComplete}
-          style={styles.checkButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          {compromisso.concluido ? (
-            <CheckCircle size={24} color={colors.success} />
-          ) : (
-            <Circle size={24} color={isCompromissoExpired ? colors.danger : colors.text.tertiary} />
-          )}
-        </TouchableOpacity>
+      {/* 🟢 Criamos um container interativo interno: clicar no texto/corpo abre a edição */}
+      <TouchableOpacity 
+        activeOpacity={0.8} 
+        onPress={onEdit}
+        style={{ flex: 1 }}
+      >
+        <View style={styles.header}>
+          {/* 🟢 A bolinha fica totalmente isolada para apenas marcar como concluído */}
+          <TouchableOpacity 
+            onPress={onToggleComplete} 
+            style={styles.checkButton}
+            activeOpacity={0.7}
+            hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+          >
+            {compromisso.concluido ? (
+              <CheckCircle size={24} color={colors.success} />
+            ) : (
+              <Circle size={24} color={isCompromissoExpired ? colors.danger : colors.text.tertiary} />
+            )}
+          </TouchableOpacity>
 
-        <View style={styles.titleContainer}>
-          <Text style={[
-            typography.subtitle,
-            { color: colors.text.primary, marginBottom: 4 },
-            compromisso.concluido && { textDecorationLine: 'line-through', color: colors.text.secondary }
-          ]} numberOfLines={2}>
-            {compromisso.titulo}
-          </Text>
-          
-          <View style={styles.infoRow}>
-            <View style={styles.infoItem}>
-              <View style={styles.categoria}>
-                <View style={[styles.categoriaIndicator, { backgroundColor: corCategoria }]} />
-                <Text style={[typography.caption, { color: colors.text.secondary }]}>
-                  {nomeCategoria}
-                </Text>
+          <View style={styles.titleContainer}>
+            <Text style={[
+              typography.subtitle,
+              { color: colors.text.primary, marginBottom: 4 },
+              compromisso.concluido && { textDecorationLine: 'line-through', color: colors.text.secondary }
+            ]} numberOfLines={2}>
+              {compromisso.titulo}
+            </Text>
+            
+            <View style={styles.infoRow}>
+              <View style={styles.infoItem}>
+                <View style={styles.categoria}>
+                  <View style={[styles.categoriaIndicator, { backgroundColor: corCategoria }]} />
+                  <Text style={[typography.caption, { color: colors.text.secondary }]}>
+                    {nomeCategoria}
+                  </Text>
+                </View>
               </View>
+              <Text style={[typography.caption, { color: colors.text.secondary }]}>
+                {compromisso.hora}
+              </Text>
             </View>
-            <Text style={[typography.caption, { color: colors.text.secondary }]}>
-              {compromisso.hora}
+          </View>
+
+          {/* Botões de ação da direita */}
+          <View style={styles.actions}>
+            <TouchableOpacity 
+              onPress={(e) => { e.stopPropagation(); onEdit(); }} 
+              style={styles.actionButton}
+            >
+              <Edit3 size={18} color={colors.text.secondary} />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              onPress={(e) => { e.stopPropagation(); onDelete(); }} 
+              style={styles.actionButton}
+            >
+              <Trash2 size={18} color={colors.danger} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={[styles.infoRow, { marginTop: 8 }]}>
+          <View style={styles.infoItem}>
+            <View style={styles.bellContainer}>
+              {compromisso.notificacaoConfig?.notifications?.some(n => n.enabled) ? (
+                <Bell size={14} color={colors.primary} />
+              ) : (
+                <BellOff size={14} color={colors.text.tertiary} />
+              )}
+            </View>
+            <Text style={[typography.caption, { color: compromisso.notificacaoConfig?.notifications?.some(n => n.enabled) ? colors.primary : colors.text.tertiary }]}>
+              {getMultipleNotificationText(compromisso.notificacaoConfig)}
             </Text>
           </View>
         </View>
 
-        <View style={styles.actions}>
-          <TouchableOpacity onPress={onEdit} style={styles.actionButton}>
-            <Edit3 size={18} color={colors.text.secondary} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={onDelete} style={styles.actionButton}>
-            <Trash2 size={18} color={colors.danger} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <View style={[styles.infoRow, { marginTop: 8 }]}>
-        <View style={styles.infoItem}>
-          <View style={styles.bellContainer}>
-            {notificationsEnabled ? (
-              <Bell size={14} color={colors.primary} />
-            ) : (
-              <BellOff size={14} color={colors.text.tertiary} />
-            )}
-            {compromisso.notificacaoConfig?.notifications?.length > 1 && notificationsEnabled && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>
-                  {compromisso.notificacaoConfig.notifications.filter(n => n.enabled).length}
-                </Text>
-              </View>
-            )}
-          </View>
-          <Text style={[typography.caption, { color: notificationsEnabled ? colors.primary : colors.text.tertiary }]}>
-            {getMultipleNotificationText(compromisso.notificacaoConfig)}
+        {compromisso.descricao && (
+          <Text style={[
+            typography.caption,
+            { color: colors.text.secondary, lineHeight: 18, marginTop: 8 },
+            compromisso.concluido && { textDecorationLine: 'line-through' },
+          ]}>
+            {compromisso.descricao}
           </Text>
-        </View>
-      </View>
+        )}
 
-      {compromisso.descricao && (
-        <Text style={[
-          typography.caption,
-          { color: colors.text.secondary, lineHeight: 18, marginTop: 8 },
-          compromisso.concluido && { textDecorationLine: 'line-through' },
-        ]}>
-          {compromisso.descricao}
-        </Text>
-      )}
-
-      {isCompromissoExpired && (
-        <Text style={[typography.caption, { color: colors.danger, fontWeight: '600', marginTop: 8 }]}>
-          Pendente
-        </Text>
-      )}
+        {isCompromissoExpired && !compromisso.concluido && (
+          <Text style={[typography.caption, { color: colors.danger, fontWeight: '600', marginTop: 8 }]}>
+            Pendente
+          </Text>
+        )}
+      </TouchableOpacity>
     </BaseCard>
-  );
+  );r
 }
 
 function makeStyles(colors: typeof lightColors) {

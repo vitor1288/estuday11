@@ -28,9 +28,9 @@ export default function AnotacoesScreen() {
     setEditModalVisible(true);
   };
 
-  const handleSaveEdit = () => {
+   const handleSaveEdit = async () => {
     if (editingAnotacao && editText.trim()) {
-      updateAnotacao({ ...editingAnotacao, texto: editText.trim() });
+      await updateAnotacao({ ...editingAnotacao, texto: editText.trim() });
       setEditModalVisible(false);
       setEditingAnotacao(null);
       setEditText('');

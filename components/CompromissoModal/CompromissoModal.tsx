@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Alert } from 'react-native';
-import { X, Save } from 'lucide-react-native';
+import { X } from 'lucide-react-native';
 import { useEstuday, Compromisso } from '@/contexts/StudayContext';
 import { formatDate } from '@/utils/dateUtils';
 import { DatePicker } from '@/components/DatePicker/DatePicker';
@@ -34,7 +34,6 @@ export function CompromissoModal({ visible, compromisso, initialDate, onClose, o
   const [categoriaId, setCategoriaId] = useState('');
   const [materiaId, setMateriaId] = useState('');
   
-  // ✨ CORREÇÃO 2: Configurado por padrão ativo para "1 dia antes"
   const [notificationConfig, setNotificationConfig] = useState<MultipleNotificationConfig>({
     notifications: [{ enabled: true, tempo: 1, unidade: 'dias' }]
   });
@@ -49,8 +48,8 @@ export function CompromissoModal({ visible, compromisso, initialDate, onClose, o
         setDescricao(compromisso.descricao || '');
         setData(compromisso.data);
         setHora(compromisso.hora);
-        setCategoriaId(compromisso.categoriaId || compromisso.categoria || listaCategorias[0]?.id || '');
-        setMateriaId(compromisso.materiaId || compromisso.materia || listaMaterias[0]?.id || '');
+        setCategoriaId(compromisso.categoriaId || compromisso.categoria || '');
+        setMateriaId(compromisso.materiaId || compromisso.materia || '');
         if (compromisso.notificacaoConfig) {
           setNotificationConfig(compromisso.notificacaoConfig);
         }
@@ -60,23 +59,30 @@ export function CompromissoModal({ visible, compromisso, initialDate, onClose, o
         setDescricao('');
         setData(initialDate || formatDate(new Date()));
         setHora('09:00');
-        setCategoriaId(listaCategorias[0]?.id || '');
-        setMateriaId(listaMaterias[0]?.id || '');
-        // ✨ Garantia de resetar para padrão ativo em novo compromisso
+        setCategoriaId('');
+        setMateriaId('');
         setNotificationConfig({ notifications: [{ enabled: true, tempo: 1, unidade: 'dias' }] });
       }
     }
   }, [visible, compromisso, initialDate]);
 
+  // 🟢 ALTERADO: Atualiza o título dinamicamente se a trava manual estiver desativada
   useEffect(() => {
-    if (!isTituloEditado && !compromisso) {
+    if (!isTituloEditado) {
       const cat = listaCategorias.find((c: any) => c.id === categoriaId);
       const mat = listaMaterias.find((m: any) => m.id === materiaId);
+      
       if (cat && mat) {
         setTitulo(`${cat.nome} de ${mat.nome}`);
+      } else if (cat) {
+        setTitulo(cat.nome);
+      } else if (mat) {
+        setTitulo(mat.nome);
+      } else {
+        setTitulo('');
       }
     }
-  }, [categoriaId, materiaId, isTituloEditado, compromisso]);
+  }, [categoriaId, materiaId, isTituloEditado, listaCategorias, listaMaterias]);
 
   const handleSave = async () => {
     if (!titulo.trim()) {
@@ -84,7 +90,6 @@ export function CompromissoModal({ visible, compromisso, initialDate, onClose, o
       return;
     }
 
-    // ✨ Busca o objeto completo da categoria e matéria selecionadas para extrair o nome técnico
     const catSelecionada = listaCategorias.find((c: any) => c.id === categoriaId);
     const matSelecionada = listaMaterias.find((m: any) => m.id === materiaId);
 
@@ -93,11 +98,10 @@ export function CompromissoModal({ visible, compromisso, initialDate, onClose, o
       descricao: descricao.trim(),
       data,
       hora,
-      categoriaId,
-      materiaId,
-      // ✨ CORREÇÃO: Salva o NOME por extenso para o Calendário gerar o corte/abreviação perfeita!
-      categoria: catSelecionada ? catSelecionada.nome : categoriaId, 
-      materia: matSelecionada ? matSelecionada.nome : materiaId,     
+      categoriaId: categoriaId || '',
+      materiaId: materiaId || '',
+      categoria: catSelecionada ? catSelecionada.nome : '', 
+      materia: matSelecionada ? matSelecionada.nome : '',     
       notificacaoConfig: notificationConfig,
       concluido: compromisso?.concluido || false
     };
@@ -118,14 +122,18 @@ export function CompromissoModal({ visible, compromisso, initialDate, onClose, o
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <X size={24} color={colors.text.secondary} />
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <X size={24} color={colors.text.primary} />
           </TouchableOpacity>
-          <Text style={[typography.subtitle, { color: colors.text.primary }]}>
-            {compromisso ? 'Editar Compromisso' : 'Novo Compromisso'}
-          </Text>
-          <TouchableOpacity onPress={handleSave} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Save size={24} color={colors.primary} />
+          
+          <View style={styles.titleWrapper}>
+            <Text style={[typography.h3, { color: colors.text.primary }]} numberOfLines={1}>
+              {compromisso ? 'Editar Compromisso' : 'Novo Compromisso'}
+            </Text>
+          </View>
+          
+          <TouchableOpacity onPress={handleSave} style={styles.saveButtonHeader}>
+            <Text style={styles.saveButtonTextHeader}>Salvar</Text>
           </TouchableOpacity>
         </View>
 
@@ -136,9 +144,14 @@ export function CompromissoModal({ visible, compromisso, initialDate, onClose, o
             <TextInput
               style={styles.input}
               value={titulo}
+              // 🟢 ALTERADO: Se o usuário limpar o input manualmente, desativamos a trava para o automático voltar a reinar
               onChangeText={(text) => {
                 setTitulo(text);
-                setIsTituloEditado(true);
+                if (text.trim() === '') {
+                  setIsTituloEditado(false);
+                } else {
+                  setIsTituloEditado(true);
+                }
               }}
               placeholder="Ex: Prova de Matemática"
               placeholderTextColor={colors.text.tertiary}
@@ -156,7 +169,7 @@ export function CompromissoModal({ visible, compromisso, initialDate, onClose, o
                       styles.categoriaButton,
                       categoriaId === cat.id && { backgroundColor: cat.cor, borderColor: cat.cor }
                     ]}
-                    onPress={() => setCategoriaId(cat.id)}
+                    onPress={() => setCategoriaId(prev => prev === cat.id ? '' : cat.id)}
                   >
                     <Text style={[typography.caption, { color: categoriaId === cat.id ? '#FFF' : colors.text.primary }]}>
                       {cat.nome}
@@ -178,7 +191,7 @@ export function CompromissoModal({ visible, compromisso, initialDate, onClose, o
                       styles.categoriaButton,
                       materiaId === mat.id && { backgroundColor: colors.primary, borderColor: colors.primary }
                     ]}
-                    onPress={() => setMateriaId(mat.id)}
+                    onPress={() => setMateriaId(prev => prev === mat.id ? '' : mat.id)}
                   >
                     <Text style={[typography.caption, { color: materiaId === mat.id ? '#FFF' : colors.text.primary }]}>
                       {mat.nome}
@@ -244,7 +257,42 @@ export function CompromissoModal({ visible, compromisso, initialDate, onClose, o
 function makeStyles(colors: typeof lightColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background.secondary },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, backgroundColor: colors.background.primary, borderBottomWidth: 1, borderBottomColor: colors.border.light },
+    header: { 
+      flexDirection: 'row', 
+      alignItems: 'center', 
+      justifyContent: 'center', 
+      height: 64,
+      paddingHorizontal: 16, 
+      backgroundColor: colors.background.primary, 
+      borderBottomWidth: 1, 
+      borderBottomColor: colors.border.light,
+      position: 'relative'
+    },
+    titleWrapper: {
+      maxWidth: '55%',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    closeButton: { 
+      position: 'absolute',
+      left: 16,
+      padding: 6,
+    },
+    saveButtonHeader: {
+      position: 'absolute',
+      right: 16,
+      backgroundColor: colors.primary,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    saveButtonTextHeader: {
+      color: '#fff',
+      fontWeight: '600',
+      fontSize: 14,
+    },
     content: { flex: 1, padding: 20 },
     field: { marginBottom: 20 },
     input: { borderWidth: 1, borderColor: colors.border.light, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 12, fontSize: 16, color: colors.text.primary, backgroundColor: colors.background.primary },
