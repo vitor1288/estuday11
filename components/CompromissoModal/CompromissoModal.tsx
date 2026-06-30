@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Alert, Platform } from 'react-native';
+import { Modal, View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Platform } from 'react-native';
 import { X } from 'lucide-react-native';
 import { useEstuday, Compromisso } from '@/contexts/StudayContext';
 import { formatDate } from '@/utils/dateUtils';
@@ -8,6 +8,7 @@ import TimePicker from '@/components/TimePicker/TimePicker';
 import { NotificationSelector, MultipleNotificationConfig } from '@/components/NotificationSelector/NotificationSelector';
 import { useTheme } from '@/contexts/ThemeContext';
 import { lightColors } from '@/components/theme/colors';
+import { CustomAlert } from '@/components/CustomAlert';
 
 interface CompromissoModalProps {
   visible: boolean;
@@ -15,6 +16,15 @@ interface CompromissoModalProps {
   initialDate?: string;
   onClose: () => void;
   onSave: () => void;
+}
+
+type AlertType = 'success' | 'error' | 'warning' | 'info' | 'confirm';
+
+interface AlertState {
+  visible: boolean;
+  title: string;
+  message: string;
+  type: AlertType;
 }
 
 export function CompromissoModal({ visible, compromisso, initialDate, onClose, onSave }: CompromissoModalProps) {
@@ -30,15 +40,31 @@ export function CompromissoModal({ visible, compromisso, initialDate, onClose, o
   const [descricao, setDescricao] = useState('');
   const [data, setData] = useState(formatDate(new Date()));
   const [hora, setHora] = useState('09:00');
-  
+
   const [categoriaId, setCategoriaId] = useState('');
   const [materiaId, setMateriaId] = useState('');
-  
+
   const [notificationConfig, setNotificationConfig] = useState<MultipleNotificationConfig>({
     notifications: [{ enabled: true, tempo: 1, unidade: 'dias' }]
   });
 
   const [showTimePicker, setShowTimePicker] = useState(false);
+
+  // 🟢 NOVO: Estado do CustomAlert (substitui o Alert.alert do sistema)
+  const [alertState, setAlertState] = useState<AlertState>({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info',
+  });
+
+  const showAlert = (title: string, message: string, type: AlertType = 'info') => {
+    setAlertState({ visible: true, title, message, type });
+  };
+
+  const closeAlert = () => {
+    setAlertState(prev => ({ ...prev, visible: false }));
+  };
 
   useEffect(() => {
     if (visible) {
@@ -71,7 +97,7 @@ export function CompromissoModal({ visible, compromisso, initialDate, onClose, o
     if (!isTituloEditado) {
       const cat = listaCategorias.find((c: any) => c.id === categoriaId);
       const mat = listaMaterias.find((m: any) => m.id === materiaId);
-      
+
       if (cat && mat) {
         setTitulo(`${cat.nome} de ${mat.nome}`);
       } else if (cat) {
@@ -86,7 +112,7 @@ export function CompromissoModal({ visible, compromisso, initialDate, onClose, o
 
   const handleSave = async () => {
     if (!titulo.trim()) {
-      Alert.alert('Erro', 'Por favor, insira um título para o compromisso.');
+      showAlert('Erro', 'Por favor, insira um título para o compromisso.', 'error');
       return;
     }
 
@@ -100,8 +126,8 @@ export function CompromissoModal({ visible, compromisso, initialDate, onClose, o
       hora,
       categoriaId: categoriaId || '',
       materiaId: materiaId || '',
-      categoria: catSelecionada ? catSelecionada.nome : '', 
-      materia: matSelecionada ? matSelecionada.nome : '',     
+      categoria: catSelecionada ? catSelecionada.nome : '',
+      materia: matSelecionada ? matSelecionada.nome : '',
       notificacaoConfig: notificationConfig,
       concluido: compromisso?.concluido || false
     };
@@ -114,7 +140,7 @@ export function CompromissoModal({ visible, compromisso, initialDate, onClose, o
       }
       onSave();
     } catch (error) {
-      Alert.alert('Erro', 'Ocorreu um erro ao salvar o compromisso.');
+      showAlert('Erro', 'Ocorreu um erro ao salvar o compromisso.', 'error');
     }
   };
 
@@ -125,20 +151,20 @@ export function CompromissoModal({ visible, compromisso, initialDate, onClose, o
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <X size={24} color={colors.text.primary} />
           </TouchableOpacity>
-          
+
           <View style={styles.titleWrapper}>
             <Text style={[typography.h3, { color: colors.text.primary }]} numberOfLines={1}>
               {compromisso ? 'Editar Compromisso' : 'Novo Compromisso'}
             </Text>
           </View>
-          
+
           <TouchableOpacity onPress={handleSave} style={styles.saveButtonHeader}>
             <Text style={styles.saveButtonTextHeader}>Salvar</Text>
           </TouchableOpacity>
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          
+
           <View style={styles.field}>
             <Text style={[typography.caption, { color: colors.text.secondary, marginBottom: 8 }]}>Título</Text>
             <TextInput
@@ -155,7 +181,7 @@ export function CompromissoModal({ visible, compromisso, initialDate, onClose, o
                }}
                placeholder="Ex: Prova de Matemática"
                placeholderTextColor={colors.text.tertiary}
-               
+
                // ⌨️ Atalho Inteligente para Salvar com Enter na Web
                onKeyPress={(e: any) => {
                  if (Platform.OS === 'web') {
@@ -241,7 +267,7 @@ export function CompromissoModal({ visible, compromisso, initialDate, onClose, o
              placeholderTextColor={colors.text.tertiary}
              multiline
              numberOfLines={4}
-             
+
              // ⌨️ Atalho Inteligente para Salvar com Enter na Web
              onKeyPress={(e: any) => {
                if (Platform.OS === 'web') {
@@ -272,6 +298,15 @@ export function CompromissoModal({ visible, compromisso, initialDate, onClose, o
           </View>
         </View>
       </Modal>
+
+      {/* 🟢 NOVO: CustomAlert no lugar do Alert.alert do sistema */}
+      <CustomAlert
+        visible={alertState.visible}
+        title={alertState.title}
+        message={alertState.message}
+        type={alertState.type}
+        onClose={closeAlert}
+      />
     </Modal>
   );
 }
